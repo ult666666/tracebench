@@ -303,3 +303,37 @@ The external caller example is pinned to feature implementation ancestor
 source. That commit contains every referenced runner/script and declares package
 0.3.0; it does not point at the older 0.2.0 release. The documentation pin was
 added afterward so its literal SHA identifies an actual existing commit.
+
+## 0.3.0 review repair: generated JSON size bound
+
+Independent review found that both CI runner stages applied `load_json`'s default
+16 MiB input bound to generated reports, despite advertising a 64 MiB artifact
+bound. Six valid 500,000-character recorded outputs can produce about 18 MB of
+JSON after HTML-sensitive character escaping; each real CLI format succeeds,
+but the runner previously returned 2 and removed staging, or rejected a correctly
+hashed gate handoff.
+
+Five installed-wheel regression/boundary tests now exercise the real CLI from
+outside the checkout with no `PYTHONPATH`. Before the repair, the two independent
+positive methods produced **six failing subtests**: evaluate/upload handoff and
+independently generated gate reports, each with actual outcome **0, 1 and 3**.
+Both generated `report.json` reads now explicitly pass `max_bytes=REPORT_LIMIT`.
+The helper default, CLI baseline-input limit, schemas, renderer, 10 MiB workflow
+input cap and 64 MiB generated-report cap are unchanged.
+
+The new tests also generate a real valid JSON report above 64 MiB from separately
+bounded case/output files and prove evaluation rejects it with exit 2, no upload
+handoff and removed staging. A sparse 64 MiB + 1 byte report proves the gate
+rejects the size before hashing. An installed CLI baseline test verifies that a
+valid report over 16 MiB still cannot enter through the unchanged baseline-input
+interface. The complete **77-test** suite passes on both **Python 3.13.7** and
+**Python 3.15.0**. The large valid reports retain normal gate outcomes 0/1/3 and
+are preserved in the upload handoff.
+
+Fresh source, wheel and source-archive environments were rebuilt and installed
+again with `pip install --no-cache-dir --no-index` after this repair. Each reports
+metadata/runtime/CLI version **0.3.0** outside the checkout, preserves real normal
+gates 0/1/3 and explicit expected-3 verification, and passes the original demo,
+exact HTML sample and required real Chromium checks. `actionlint 1.7.7` and
+`git diff --check` pass; Pages source and sample bytes remain unchanged. Hosted
+PR execution and publication are separate parent-owned work.

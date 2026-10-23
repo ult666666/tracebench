@@ -126,7 +126,7 @@ def evaluate_stage():
         if len(set(codes)) != 1 or any(digest(inputs[name]) != meta["sha256"] for name, meta in provenance_inputs.items()):
             raise RunnerError("input or outcome changed during evaluation")
         code = codes[0]
-        report = load_json(directory / "report.json")
+        report = load_json(directory / "report.json", max_bytes=REPORT_LIMIT)
         provenance = {"tracebench_version": __version__, "source_sha": revision,
                       "suite_sha256": report["suite_sha256"], "inputs": provenance_inputs,
                       "evaluation_exit": code, "expected_outcome": expected,
@@ -168,7 +168,7 @@ def gate_stage():
             or handoff["sha256"] != {name: digest(raw / name) for name in REPORTS}):
         raise RunnerError("invalid or changed evaluation handoff")
     code = handoff["exit_code"]
-    report = load_json(raw / "report.json")
+    report = load_json(raw / "report.json", max_bytes=REPORT_LIMIT)
     validate_report(report)
     actual = 3 if report["comparison"] and report["comparison"]["regressions"] else (1 if report["summary"]["failed"] else 0)
     if code != actual:

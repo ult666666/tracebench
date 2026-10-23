@@ -107,6 +107,10 @@ The runner creates an exclusive `tracebench-*` directory in `RUNNER_TEMP`, outsi
 the caller checkout. It generates only `report.json`, `report.md`, `report.html`,
 `provenance.json`, and `gate.json`. Reports are limited to **64 MiB each**; every
 CLI subprocess has a 60-second timeout and the reusable job a 10-minute timeout.
+The 64 MiB allowance applies only to generated report reads. Workflow input files
+remain capped at 10 MiB; the direct CLI retains its 16 MiB baseline-JSON input
+limit. A larger generated report cannot be reused through those narrower baseline
+input interfaces.
 Invalid/oversize/unstable evaluation removes the staging directory and emits no
 successful upload handoff. Input files are never report destinations.
 

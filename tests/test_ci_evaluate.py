@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import venv
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNNER = ROOT / "scripts/ci_evaluate.py"
@@ -164,6 +165,143 @@ class CiEvaluationTests(unittest.TestCase):
         linked = self.runtime / "tracebench-linked"
         linked.symlink_to(directory, target_is_directory=True)
         self.assertEqual(self.run_stage("gate", TB_REPORT_DIR=str(linked)).returncode, 2)
+
+
+class InstalledGeneratedReportLimitTests(unittest.TestCase):
+    """Exercise the runner with a real wheel installed outside the checkout."""
+
+    @classmethod
+    def setUpClass(cls):
+        import build_backend
+        cls.temporary = tempfile.TemporaryDirectory(prefix="tracebench-report-limits-")
+        cls.addClassCleanup(cls.temporary.cleanup)
+        cls.root = Path(cls.temporary.name).resolve()
+        wheel = cls.root / build_backend.build_wheel(cls.root)
+        environment = cls.root / "installed"
+        venv.EnvBuilder(with_pip=True).create(environment)
+        cls.python = environment / "bin/python"
+        install = subprocess.run([str(cls.python), "-m", "pip", "install", "--no-index", str(wheel)],
+                                 cwd=cls.root, capture_output=True, text=True, timeout=60)
+        if install.returncode:
+            raise AssertionError(install.stderr)
+
+    def setUp(self):
+        self.working = tempfile.TemporaryDirectory(dir=self.root)
+        self.addCleanup(self.working.cleanup)
+        self.directory = Path(self.working.name)
+        self.workspace = self.directory / "caller"
+        self.workspace.mkdir()
+        self.runtime = self.directory / "runtime"
+        self.runtime.mkdir()
+        self.output = self.directory / "github-output"
+        self.output.touch()
+        self.env = {**os.environ, "TB_WORKSPACE": str(self.workspace), "RUNNER_TEMP": str(self.runtime),
+                    "TB_CASES": "cases.jsonl", "TB_OUTPUTS": "outputs.jsonl", "TB_BASELINE": "",
+                    "TB_PRICING": "", "TB_EXPECTATION": "pass", "TB_SOURCE_SHA": "a" * 40,
+                    "GITHUB_OUTPUT": str(self.output), "GITHUB_STEP_SUMMARY": str(self.directory / "summary.md")}
+        self.env.pop("PYTHONPATH", None)
+        cases = [{"id": f"large-{i}", "input": "synthetic", "checks": [{"type": "contains", "expected": "<"}]}
+                 for i in range(6)]
+        (self.workspace / "cases.jsonl").write_text("".join(json.dumps(row) + "\n" for row in cases))
+        self.recorded_outputs(large=False)
+        self.cli_report("json", self.workspace / "baseline.json", 0)
+
+    def recorded_outputs(self, *, large=True, failed=False):
+        rows = [{"id": f"large-{i}", "output": (">" if failed and i == 5 else "<") * (500_000 if large else 1)}
+                for i in range(6)]
+        (self.workspace / "outputs.jsonl").write_text("".join(json.dumps(row) + "\n" for row in rows))
+        self.assertLess((self.workspace / "outputs.jsonl").stat().st_size, 10 * 1024 * 1024)
+
+    def cli_report(self, format_name, destination, code, *, baseline=""):
+        command = [str(self.python), "-m", "tracebench", "evaluate", "--cases", str(self.workspace / "cases.jsonl"),
+                   "--outputs", str(self.workspace / "outputs.jsonl"), "--format", format_name, "--report", str(destination)]
+        if baseline:
+            command += ["--baseline", str(self.workspace / baseline)]
+        result = subprocess.run(command, cwd=self.directory, env=self.env, capture_output=True, text=True, timeout=60)
+        self.assertEqual(result.returncode, code, result.stderr)
+
+    def stage(self, name, **changes):
+        return subprocess.run([str(self.python), str(RUNNER), name], cwd=self.directory,
+                              env={**self.env, **changes}, capture_output=True, text=True, timeout=60)
+
+    def assert_large_generated_json(self, directory):
+        size = (directory / "report.json").stat().st_size
+        self.assertGreater(size, 16 * 1024 * 1024)
+        self.assertLess(size, 64 * 1024 * 1024)
+
+    def test_evaluate_and_upload_handoff_accept_large_reports_from_installed_cli(self):
+        # Removing the explicit generated-report read bound rejects otherwise valid input on all three outcomes.
+        for code, failed, baseline in [(0, False, ""), (1, True, ""), (3, True, "baseline.json")]:
+            with self.subTest(code=code):
+                self.output.write_text("")
+                self.recorded_outputs(failed=failed)
+                result = self.stage("evaluate", TB_BASELINE=baseline)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                handoff = dict(line.split("=", 1) for line in self.output.read_text().splitlines())
+                self.assertEqual(handoff["exit_code"], str(code))
+                reports = Path(handoff["report_dir"])
+                self.assert_large_generated_json(reports)
+                uploaded = self.directory / f"upload-{code}"
+                shutil.copytree(reports, uploaded)
+                self.assertEqual((uploaded / "report.json").stat().st_size, (reports / "report.json").stat().st_size)
+                gate = self.stage("gate", TB_REPORT_DIR=str(reports))
+                self.assertEqual(gate.returncode, code, gate.stderr)
+
+    def test_gate_independently_accepts_large_validated_json_from_installed_cli(self):
+        # Generate reports directly so an evaluate-stage failure cannot hide the second reader's limit bug.
+        for code, failed, baseline in [(0, False, ""), (1, True, ""), (3, True, "baseline.json")]:
+            with self.subTest(code=code):
+                self.recorded_outputs(failed=failed)
+                reports = self.runtime / f"tracebench-direct-{code}"
+                reports.mkdir()
+                for format_name, filename in [("json", "report.json"), ("markdown", "report.md"), ("html", "report.html")]:
+                    self.cli_report(format_name, reports / filename, code, baseline=baseline)
+                self.assert_large_generated_json(reports)
+                (reports / "provenance.json").write_text(json.dumps({"notice": "Synthetic installed-CLI size-boundary fixture"}))
+                hashes = {name: hashlib.sha256((reports / name).read_bytes()).hexdigest()
+                          for name in ("report.json", "report.md", "report.html", "provenance.json")}
+                (reports / "gate.json").write_text(json.dumps({"exit_code": code, "expectation": "pass", "sha256": hashes}))
+                gate = self.stage("gate", TB_REPORT_DIR=str(reports))
+                self.assertEqual(gate.returncode, code, gate.stderr)
+
+    def test_gate_rejects_generated_report_above_64_mib_before_hashing(self):
+        result = self.stage("evaluate")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        reports = Path(dict(line.split("=", 1) for line in self.output.read_text().splitlines())["report_dir"])
+        with (reports / "report.json").open("wb") as stream:
+            stream.truncate(64 * 1024 * 1024 + 1)
+        gate = self.stage("gate", TB_REPORT_DIR=str(reports))
+        self.assertEqual(gate.returncode, 2, gate.stderr)
+        self.assertIn("gate artifacts must be bounded regular files", gate.stderr)
+
+    def test_evaluate_rejects_actual_generated_report_above_64_mib_without_handoff(self):
+        # Separate bounded inputs can legitimately expand past the generated-report cap.
+        checks = [{"type": "contains", "expected": "<"}] * 100
+        cases = [{"id": f"oversize-{i}", "input": "synthetic", "checks": checks} for i in range(2100)]
+        outputs = [{"id": f"oversize-{i}", "output": "<" * 4500} for i in range(2100)]
+        for name, rows in [("cases.jsonl", cases), ("outputs.jsonl", outputs)]:
+            path = self.workspace / name
+            path.write_text("".join(json.dumps(row) + "\n" for row in rows))
+            self.assertLess(path.stat().st_size, 10 * 1024 * 1024)
+        direct = self.directory / "direct-oversize.json"
+        self.cli_report("json", direct, 0)
+        self.assertGreater(direct.stat().st_size, 64 * 1024 * 1024)
+        result = self.stage("evaluate")
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("evaluation report missing or exceeds 64 MiB", result.stderr)
+        self.assertEqual(self.output.read_text(), "")
+        self.assertEqual(list(self.runtime.iterdir()), [])
+
+    def test_installed_cli_baseline_input_retains_16_mib_limit(self):
+        self.recorded_outputs()
+        self.cli_report("json", self.workspace / "large-baseline.json", 0)
+        self.assertGreater((self.workspace / "large-baseline.json").stat().st_size, 16 * 1024 * 1024)
+        result = subprocess.run([str(self.python), "-m", "tracebench", "evaluate", "--cases", str(self.workspace / "cases.jsonl"),
+                                 "--outputs", str(self.workspace / "outputs.jsonl"), "--baseline", str(self.workspace / "large-baseline.json")],
+                                cwd=self.directory, env=self.env, capture_output=True, text=True, timeout=60)
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("JSON document exceeds 16777216 bytes", result.stderr)
+        self.assertEqual(result.stdout, "")
 
 
 if __name__ == "__main__":
