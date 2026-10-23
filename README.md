@@ -32,6 +32,8 @@ the English greeting and the Mandarin location check. Run `echo $?` immediately
 after it to see the regression exit. On Windows, use `.venv\Scripts\python` and
 `.venv\Scripts\tracebench` and create `reports` with your shell's equivalent.
 
+Open the [synthetic HTML report preview](https://ult666666.github.io/tracebench/) to inspect a recorded-output example with search, case filters and full check results. All displayed outputs, prices and timing observations are invented fixtures. No provider is called.
+
 Read the tracked [sample regression report](docs/sample-regression.md) without
 installing anything, or open the standalone [HTML sample](docs/sample-report.html)
 in a browser. The HTML sample is clearly labelled as synthetic recorded-output

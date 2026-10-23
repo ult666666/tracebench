@@ -95,3 +95,13 @@ the checkout:
 ```sh
 python3 scripts/verify_html.py --cli /absolute/path/to/venv/bin/tracebench --require-browser --browser-module /absolute/path/to/node_modules/playwright
 ```
+
+## Hosted synthetic example
+
+The [GitHub Pages preview](https://ult666666.github.io/tracebench/) contains only the
+committed synthetic example, copied to `index.html` after the full test suite,
+no-index package installation, installed CLI verification and exact sample-byte
+check. The workflow deploys only that staging directory. It does not accept files,
+call providers, store user records or publish arbitrary local reports. Repository
+Pages must use GitHub Actions. The hosted bytes are checked separately after
+deployment; a configured workflow alone is not evidence that publication passed.
