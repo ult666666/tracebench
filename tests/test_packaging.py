@@ -17,14 +17,16 @@ class PackagingTests(unittest.TestCase):
                 self.assertIsNone(wheel.testzip())
                 self.assertIn("tracebench/cli.py", wheel.namelist())
                 self.assertIn("tracebench/html_report.py", wheel.namelist())
-                self.assertIn("tracebench = tracebench.cli:main", wheel.read("tracebench-0.3.0.dist-info/entry_points.txt").decode())
+                self.assertIn("tracebench/policy.py", wheel.namelist())
+                self.assertIn("tracebench = tracebench.cli:main", wheel.read("tracebench-0.4.0.dist-info/entry_points.txt").decode())
             archive = build_backend.build_sdist(directory)
             import tarfile
             with tarfile.open(Path(directory) / archive) as source:
-                self.assertIn("tracebench-0.3.0/pyproject.toml", source.getnames())
-                self.assertIn("tracebench-0.3.0/fixtures/cases.jsonl", source.getnames())
-                self.assertIn("tracebench-0.3.0/tracebench/html_report.py", source.getnames())
-                self.assertIn("tracebench-0.3.0/docs/sample-report.html", source.getnames())
+                self.assertIn("tracebench-0.4.0/pyproject.toml", source.getnames())
+                self.assertIn("tracebench-0.4.0/fixtures/cases.jsonl", source.getnames())
+                self.assertIn("tracebench-0.4.0/tracebench/html_report.py", source.getnames())
+                self.assertIn("tracebench-0.4.0/tracebench/policy.py", source.getnames())
+                self.assertIn("tracebench-0.4.0/docs/sample-report.html", source.getnames())
 
     def test_built_wheel_runs_outside_checkout(self):
         import build_backend
@@ -34,7 +36,7 @@ class PackagingTests(unittest.TestCase):
             result = subprocess.run([sys.executable, "-I", "-c", "import sys; sys.path.insert(0, sys.argv[1]); " + script, str(wheel)],
                                     cwd=directory, capture_output=True, text=True, timeout=10)
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(result.stdout.strip(), "tracebench 0.3.0")
+            self.assertEqual(result.stdout.strip(), "tracebench 0.4.0")
 
 
 if __name__ == "__main__":

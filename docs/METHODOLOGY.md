@@ -63,8 +63,8 @@ Only compatible case suites compare. A regression is baseline pass → candidate
 fail; an improvement is baseline fail → candidate pass. Existing failures do
 not become regressions. A regression wins over a simultaneous improvement,
 even when overall pass rate is unchanged. Changed IDs, prompts, expectations,
-or descriptions require a fresh baseline. No automatic threshold test is
-applied to costs or latency.
+or descriptions require a fresh baseline. The default evaluation applies no cost or latency threshold; optional explicit
+budgets use the separate policy command described below.
 
 ## Synthetic demo interpretation
 
@@ -78,3 +78,30 @@ The tool is useful for mechanical acceptance criteria and reproducible review.
 It cannot establish whether cases represent real users, whether recorded data
 is trustworthy, or whether a change is safe to deploy. Human review and broader
 evaluation remain outside its scope.
+
+## Explicit recorded-observation budgets (0.4.0)
+
+The optional separate `policy` command applies only caller-selected rules to an
+already validated evaluation. It never changes report schema 1, check outcomes,
+baseline comparison or the default evaluation exit codes.
+
+For `min_pass_rate = a/b`, acceptance uses `passed*b >= cases*a` with exact
+integers. For 1/3 passed, thresholds `0.3333331` and `0.3333334` respectively pass
+and fail even though the report displays `0.333333`. Latency and cost use exact
+integer ratios derived from decimal strings. Boundaries are inclusive. No float,
+rounding, global Decimal-context mutation or currency conversion is involved.
+
+A p95 budget requires supplied latency for every case; the existing nearest-rank
+percentile is then compared exactly. A total-cost budget requires every case to
+have supplied token counts and a known priced cost, in the exact selected
+currency. Partial sums, absent data and currency mismatch are `unavailable`,
+which rejects the policy. Supplied zero with complete coverage remains evaluable.
+Coverage is required only for the selected metric rules.
+
+All selected rules must pass. A permissive minimum pass rate or a latency-only
+policy may accept a report with failed cases; the separate verdict keeps failure
+and regression counts visible. Normal CI preserves evaluation 1/3 as failures,
+then adds policy rejection when evaluation is 0. A budget acceptance establishes
+only a deterministic relationship between supplied values and selected limits.
+It does not establish measured provider performance, authenticated observations,
+model safety, production quality, spending authority or representativeness.

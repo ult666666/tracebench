@@ -42,7 +42,8 @@ Omit `pricing` if costs are unavailable and `baseline` if only check failures
 should gate the run. The default `expectation: pass` applies the real gate.
 `expectation: regression` is reserved for deliberate verification fixtures: it
 succeeds only when evaluation exits 3, and must not replace a real release gate.
-The only supported expectation strings are `pass` and `regression`. Use a unique
+The supported expectation strings are `pass`, `regression`, and the optional
+`policy-failure` fixture assertion described below. Use a unique
 `artifact-name` for each call in a run: `[a-z][a-z0-9-]{0,62}`. There are no
 user-selectable commands, output paths, runtime versions, or report formats.
 
@@ -65,7 +66,8 @@ write permissions to this job. Ordinary GitHub fork-PR approval rules still appl
 
 ## Input paths and baseline provenance
 
-`cases` and `outputs` are required; `baseline` and `pricing` are optional. Each
+`cases` and `outputs` are required; `baseline`, `pricing`, and `rules` are optional
+(the stricter rules cap is described below). Each
 nonempty path must identify a regular file inside the caller checkout:
 
 - At most 1,024 characters and 20 slash-separated components; at most **10 MiB**
@@ -104,7 +106,7 @@ whether a baseline is appropriate.
 | 3: pass-to-fail baseline regression | Success with reports | Runs | Fails with 3 |
 
 The runner creates an exclusive `tracebench-*` directory in `RUNNER_TEMP`, outside
-the caller checkout. It generates only `report.json`, `report.md`, `report.html`,
+the caller checkout. Without rules it generates only `report.json`, `report.md`, `report.html`,
 `provenance.json`, and `gate.json`. Reports are limited to **64 MiB each**; every
 CLI subprocess has a 60-second timeout and the reusable job a 10-minute timeout.
 The 64 MiB allowance applies only to generated report reads. Workflow input files
@@ -127,7 +129,8 @@ and source revision. It embeds no recorded text or caller-provided path. The
 artifact is retained for **7 days**. The upload path is only this generated
 directory, never the checkout, `.git`, environment files, credentials, virtual
 environment, or Node dependencies. The final stage verifies report hashes and
-validated JSON outcome before returning the real evaluation exit. It also runs
+validated JSON outcome before returning the real evaluation exit, or the
+combined evaluation/policy result when rules are selected. It also runs
 if upload fails; an upload failure already keeps the job failed. Cancellation
 may interrupt reporting. There is no `continue-on-error` to hide regressions.
 The reusable workflow exposes `evaluation-exit` when reports were produced;
@@ -174,3 +177,72 @@ jobs, their artifacts and summaries, and a deliberately failing normal gate befo
 relying on a required check. Hosted verification and publication are recorded
 separately after integration. This is a deterministic recorded-output check, not
 a statistical benchmark, security audit, or guarantee about live model behavior.
+
+## Optional recorded-observation budgets (0.4.0)
+
+A reviewed 0.4.0 workflow/source revision accepts optional `rules`, a caller-relative
+strict schema 1 policy JSON path. It uses the same path restrictions above and a
+stricter **64 KiB** file cap. Thresholds are explicit decimal strings; at least
+one is required. Use `fixtures/budget-pass.json` or `fixtures/budget-fail.json`
+with the checked-in clean fixture and explicit pricing to reproduce policy 0/1.
+The preceding default-only 0.3.0 pin must be upgraded to a reviewed 0.4.0 source
+ancestor before adding `rules`; workflow and source SHAs must always match.
+
+With rules, the exact artifact set is `report.json`, `report.md`, `report.html`,
+`provenance.json`, `gate.json`, **`policy.json`, `policy.md`, `rules.json`**.
+The additional files are capped at 64 KiB each. `rules.json` is a byte-for-byte
+snapshot of the validated caller-selected thresholds; review it as public report
+content when using public CI. No other caller files are copied. Without rules,
+the exact original five-file set, evaluation report bytes, summary/handoff shape
+and normal gate behavior remain unchanged (apart from the reported package version).
+
+The runner invokes the installed policy CLI for JSON and Markdown, retaining
+valid policy exits 0/1 for upload. Invalid rules/report or I/O remains exit 2,
+removes staging and produces no successful handoff. `gate.json` adds `policy_exit`
+and hashes all seven other artifacts. The final gate validates the exact optional
+set, verifies hashes, validates the evaluation, and recomputes both verdict and
+Markdown from the saved rules/report. The generated-report reader retains its
+64 MiB repair; evaluate baseline inputs retain their separate narrower limit.
+Copied artifacts can be verified after the caller's rules file is removed.
+Hashes do not authenticate recorded observations or protect against trusted code
+that deliberately rewrites the complete artifact set and metadata.
+
+Provenance records original `evaluation_exit` and separate `policy_exit`, and
+hashes the original rules input. The summary shows both statuses without embedding
+caller text or paths. The workflow exposes `policy-exit` (0/1), empty without
+rules, in addition to original `evaluation-exit`. Failed-job output/dependency
+semantics still apply. Artifacts are uploaded before the combined gate:
+
+| Evaluation | Policy | Normal combined gate |
+| --- | --- | --- |
+| 0 | 0 | 0 |
+| 0 | 1 (failed or unavailable) | 1 |
+| 1 | 0 or 1 | 1 |
+| 3 | 0 or 1 | 3 |
+| Invalid report or rules | No valid verdict | Stage fails 2; no upload handoff |
+
+Missing/partial supplied latency or token/pricing coverage and mismatched currency
+are `unavailable`, not zero or exclusions. Policy acceptance concerns only selected
+rules; original failed cases and regressions stay visible and retain gate priority.
+There are no provider calls, inferred observations, price feeds or conversions.
+
+Own CI calls the reusable workflow for **Synthetic budget accepted by real combined
+gate** and **Verify synthetic budget failure (evaluation 0, policy 1)**. The second
+uses finite `expectation: policy-failure`, which succeeds only for evaluation 0
+and policy 1; absent rules, policy acceptance or evaluation failure makes the
+verification fail. `expectation: regression` still requires evaluation 3 and now
+also requires any selected policy to pass. These are explicit fixture assertions;
+normal consumers must use the default `expectation: pass`. A normal consumer's
+failed budget remains a failing job and is not converted into an assertion.
+
+For local runner reproduction add `TB_RULES` to both stages of the earlier
+environment contract. The final stage uses its nonempty value only as the
+independent selection marker and requires exactly the optional artifact set; it
+does not reopen that caller path. Keep the marker when verifying copied artifacts,
+even if the original rules input was removed. This prevents a missing policy set
+from silently changing a selected-budget run into a no-policy gate. Computation
+uses only the staged snapshot, not a caller-selected executable or output path. Installed-CLI tests cover 0/1/unavailable/invalid policy, exact artifact
+sets/hashes and copied handoff, real failure priority, fixture assertions,
+recomputed-verdict tamper rejection and no-policy behavior. Hosted normal failing
+budget, artifact retention, actual own-CI calls and Pages checks remain separate
+integration evidence; local subprocess tests do not claim those hosted results.

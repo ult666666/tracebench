@@ -86,6 +86,8 @@ tokens. TraceBench does not retrieve prices or infer token counts.
 tracebench evaluate --cases PATH --outputs PATH
     [--pricing PATH] [--baseline PATH]
     [--format json|markdown|html] [--report PATH]
+tracebench policy --evaluation REPORT_JSON --rules RULES_JSON
+    [--format json|markdown] [--report PATH]
 tracebench --version
 ```
 
@@ -136,6 +138,37 @@ and HTML reports before applying the real regression gate. This repository calls
 it with both clean and deliberately regressed synthetic fixtures; the regression
 verification explicitly asserts exit 3. External callers pin the workflow and
 TraceBench source to the same reviewed immutable commit.
+
+## Explicit budgets for supplied observations
+
+Version 0.4.0 adds a separate policy verdict over an existing JSON evaluation:
+
+```sh
+.venv/bin/tracebench policy --evaluation reports/clean.json --rules fixtures/budget-pass.json --report reports/policy.json
+.venv/bin/tracebench policy --evaluation reports/clean.json --rules fixtures/budget-fail.json --format markdown --report reports/policy-fail.md
+```
+
+These synthetic examples exit **0** and **1**. Both require pass rate 1 and total
+cost at most 0.0000327 USD; their p95 limits are 210 and 209.999 ms respectively.
+Rules are strict versioned JSON with at least one explicit threshold. Every
+selected rule must pass. Latency requires complete supplied coverage; cost
+requires complete supplied tokens/pricing in the matching currency. Missing or
+partial observations and currency mismatch are visibly `unavailable` and reject
+the policy. Exact integer comparisons avoid rounded pass-rate decisions.
+
+Policy exits are **0** accepted, **1** rejected/unavailable, **2** invalid
+rules/report, usage or I/O. Policy acceptance applies only to selected budgets;
+it keeps failed-case and regression counts visible and does not change evaluation
+exits. Verdicts retain the suite fingerprint, a serialized-evaluation fingerprint,
+exact thresholds/actuals and a supplied-data caveat. Nothing measures a provider,
+infers usage, retrieves prices, converts currency or authorizes spending.
+
+The reusable workflow accepts an optional caller-relative `rules` path and
+uploads explicit verdicts before the combined gate. Normal evaluation 1/3 always
+fails even if policy accepts. The repository's separate expected-budget-failure
+job proves evaluation 0 / policy 1; it is a verification assertion, not a consumer
+release gate. See [CI integration](docs/CI.md), [rules/verdict schemas](docs/SCHEMAS.md)
+and [methodology](docs/METHODOLOGY.md) for limits and exact behavior.
 
 ## Reviewer path
 

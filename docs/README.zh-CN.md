@@ -57,3 +57,33 @@ JSON 字符串显示，不截断，保留 Unicode、换行、控制字符和精�
 运行测试：`python3 -m unittest discover -v`。详细设计见
 [架构](ARCHITECTURE.md)、[方法与限制](METHODOLOGY.md)、[数据契约](SCHEMAS.md)
 与[验证记录](VERIFICATION.md)。这些机械检查无法判断事实正确性或语义质量。
+
+## 0.4.0：显式观测预算
+
+预算是独立的规则文件与判定结果，不改变原有 schema 1 评估报告或 evaluate
+命令的 0/1/2/3 退出码。在前面的 clean.json 生成后运行：
+
+```sh
+.venv/bin/tracebench policy --evaluation reports/clean.json --rules fixtures/budget-pass.json --report reports/policy.json
+.venv/bin/tracebench policy --evaluation reports/clean.json --rules fixtures/budget-fail.json --format markdown --report reports/policy-fail.md
+```
+
+两条命令分别退出 **0**、**1**。合成规则均要求通过率 1、总成本不超过
+0.0000327 USD，p95 延迟上限分别为 210 与 209.999 毫秒。所有选中规则必须满足；
+通过率按整数通过数/案例数精确比较，延迟和成本不转为二进制浮点数。
+
+延迟预算要求全部案例都有用户提供的延迟。成本预算要求全部案例都有 token
+观测与已定价成本，且币种完全相同。缺失、部分覆盖或币种不符显示 unavailable，
+并拒绝预算；完整覆盖下的实际零值可以参与比较。policy 的 **2** 表示规则、报告、
+文件、用法错误。规则文件上限 64 KiB，评估输入上限 64 MiB，原有基线输入仍为
+16 MiB。详见 [规则与结果契约](SCHEMAS.md)。
+
+预算接受只针对选中的阈值；结果保留失败案例数、回归数、suite 指纹及序列化评估
+指纹。所有观测仍由调用者提供，工具不测量、不认证、不查询价格、不换算币种，
+也不代表模型质量、安全性或支出授权。
+
+可复用 CI 的可选 `rules` 参数生成 policy.json、policy.md 与 rules.json 快照，
+先上传再应用组合门禁。普通门禁优先保留评估的 1/3 失败；只有评估 0 时才由预算
+拒绝增加退出 1。`expectation: policy-failure` 仅用于合成验证，必须观察到评估 0
+与预算 1；不能替代真实发布门禁。默认不传规则时，原有五个文件和门禁契约保持。
+参见 [CI 文档](CI.md)。托管运行、独立审查及发布证据由集成阶段另行记录。

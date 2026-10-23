@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "min_pass_rate": "1",
+  "max_p95_latency_ms": "209.999",
+  "max_total_cost": {"currency": "USD", "amount": "0.0000327"}
+}

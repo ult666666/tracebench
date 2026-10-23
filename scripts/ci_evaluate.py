@@ -18,6 +18,7 @@ import tempfile
 from tracebench import __version__
 from tracebench.evaluate import validate_report
 from tracebench.io import InputError, load_json
+from tracebench.policy import RULES_LIMIT, evaluate_policy, load_rules, render_policy_markdown
 
 
 class RunnerError(ValueError):
@@ -27,6 +28,7 @@ class RunnerError(ValueError):
 INPUT_LIMIT = 10 * 1024 * 1024
 REPORT_LIMIT = 64 * 1024 * 1024
 REPORTS = ("report.json", "report.md", "report.html", "provenance.json")
+POLICY_REPORTS = ("policy.json", "policy.md", "rules.json")
 
 
 def digest(path):
@@ -73,8 +75,8 @@ def input_file(workspace, value):
 
 def expectation():
     value = os.environ.get("TB_EXPECTATION", "pass")
-    if value not in {"pass", "regression"}:
-        raise RunnerError("expectation must be pass or regression")
+    if value not in {"pass", "regression", "policy-failure"}:
+        raise RunnerError("expectation must be pass or regression or policy-failure")
     return value
 
 
@@ -101,10 +103,14 @@ def evaluate_stage():
     workspace, runtime = roots()
     expected, revision = expectation(), source_sha()
     inputs = {}
-    for name in ("cases", "outputs", "baseline", "pricing"):
+    for name in ("cases", "outputs", "baseline", "pricing", "rules"):
         value = os.environ.get("TB_" + name.upper(), "")
         if value or name in {"cases", "outputs"}:
             inputs[name] = input_file(workspace, value)
+    if "rules" in inputs:
+        load_rules(inputs["rules"])
+    elif expected == "policy-failure":
+        raise RunnerError("policy-failure verification requires explicit rules")
     provenance_inputs = {name: {"path": path.relative_to(workspace).as_posix(), "sha256": digest(path)}
                          for name, path in inputs.items()}
     # New exclusive directories; neither caller nor input selects an output path.
@@ -112,6 +118,8 @@ def evaluate_stage():
     try:
         command = [sys.executable, "-m", "tracebench", "evaluate"]
         for name, path in inputs.items():
+            if name == "rules":
+                continue
             command += ["--" + name, str(path)]
         codes = []
         for format_name, filename in [("json", "report.json"), ("markdown", "report.md"), ("html", "report.html")]:
@@ -127,21 +135,50 @@ def evaluate_stage():
             raise RunnerError("input or outcome changed during evaluation")
         code = codes[0]
         report = load_json(directory / "report.json", max_bytes=REPORT_LIMIT)
+        policy_code = None
+        artifacts = REPORTS
+        if "rules" in inputs:
+            shutil.copyfile(inputs["rules"], directory / "rules.json")
+            load_rules(directory / "rules.json")
+            policy_command = [sys.executable, "-m", "tracebench", "policy", "--evaluation", str(directory / "report.json"),
+                              "--rules", str(directory / "rules.json")]
+            policy_codes = []
+            for format_name, filename in [("json", "policy.json"), ("markdown", "policy.md")]:
+                result = subprocess.run(policy_command + ["--format", format_name, "--report", str(directory / filename)],
+                                        cwd=runtime, capture_output=True, timeout=60)
+                if result.returncode not in {0, 1}:
+                    raise RunnerError("policy rejected input or failed (expected valid exit 0 or 1)")
+                if not (directory / filename).is_file() or (directory / filename).stat().st_size > RULES_LIMIT:
+                    raise RunnerError("policy report missing or exceeds 64 KiB")
+                policy_codes.append(result.returncode)
+            if len(set(policy_codes)) != 1:
+                raise RunnerError("policy outcome changed during rendering")
+            policy_code = policy_codes[0]
+            artifacts += POLICY_REPORTS
+            if any(digest(inputs[name]) != meta["sha256"] for name, meta in provenance_inputs.items()):
+                raise RunnerError("input changed during policy evaluation")
         provenance = {"tracebench_version": __version__, "source_sha": revision,
                       "suite_sha256": report["suite_sha256"], "inputs": provenance_inputs,
                       "evaluation_exit": code, "expected_outcome": expected,
                       "notice": "Recorded outputs only; provenance hashes do not establish truth or model quality."}
+        if policy_code is not None:
+            provenance["policy_exit"] = policy_code
         write_json(directory / "provenance.json", provenance)
-        write_json(directory / "gate.json", {"exit_code": code, "expectation": expected,
-                                             "sha256": {name: digest(directory / name) for name in REPORTS}})
+        handoff = {"exit_code": code, "expectation": expected,
+                   "sha256": {name: digest(directory / name) for name in artifacts}}
+        if policy_code is not None:
+            handoff["policy_exit"] = policy_code
+        write_json(directory / "gate.json", handoff)
         regressions = len(report["comparison"]["regressions"]) if report["comparison"] else 0
+        policy_summary = f"Policy exit: **{policy_code}** · all selected budgets must pass; unavailable observations fail policy.\n\n" if policy_code is not None else ""
         append_environment("GITHUB_STEP_SUMMARY", f"### TraceBench recorded evaluation\n\n"
                            f"Evaluation exit: **{code}** · passed: **{report['summary']['passed']}** · "
                            f"failed: **{report['summary']['failed']}** · regressions: **{regressions}**\n\n"
-                           f"Gate expectation: `{expected}`. Reports are uploaded before applying the gate.\n\n"
+                           + policy_summary + f"Gate expectation: `{expected}`. Reports are uploaded before applying the gate.\n\n"
                            f"TraceBench `{__version__}` · source `{revision}` · suite `{report['suite_sha256']}`\n\n"
                            "Recorded outputs only; no provider was called. Download the JSON, Markdown, HTML and provenance artifact.\n")
-        append_environment("GITHUB_OUTPUT", f"report_dir={directory}\nexit_code={code}\n")
+        append_environment("GITHUB_OUTPUT", f"report_dir={directory}\nexit_code={code}\n" +
+                           (f"policy_exit={policy_code}\n" if policy_code is not None else ""))
         print(f"Recorded evaluation completed with exit {code}; bounded reports ready for upload.")
         return 0
     except BaseException:
@@ -155,17 +192,23 @@ def gate_stage():
     raw = Path(os.environ.get("TB_REPORT_DIR", ""))
     if raw.is_symlink() or raw.parent != runtime or not re.fullmatch(r"tracebench-[A-Za-z0-9_-]+", raw.name):
         raise RunnerError("gate directory must be the generated directory in RUNNER_TEMP")
-    if {p.name for p in raw.iterdir()} != set(REPORTS) | {"gate.json"}:
+    names = {p.name for p in raw.iterdir()}
+    artifacts = REPORTS + POLICY_REPORTS if "policy.json" in names else REPORTS
+    has_policy = artifacts != REPORTS
+    if has_policy != bool(os.environ.get("TB_RULES", "")):
+        raise RunnerError("gate artifacts disagree with the selected policy option")
+    if names != set(artifacts) | {"gate.json"}:
         raise RunnerError("gate directory contains unexpected or missing artifacts")
-    for name in (*REPORTS, "gate.json"):
+    for name in (*artifacts, "gate.json"):
         path = raw / name
-        if path.is_symlink() or not path.is_file() or path.stat().st_size > REPORT_LIMIT:
+        if path.is_symlink() or not path.is_file() or path.stat().st_size > (RULES_LIMIT if name in POLICY_REPORTS else REPORT_LIMIT):
             raise RunnerError("gate artifacts must be bounded regular files")
     handoff = load_json(raw / "gate.json")
-    if (not isinstance(handoff, dict) or set(handoff) != {"exit_code", "expectation", "sha256"}
+    if (not isinstance(handoff, dict) or set(handoff) != ({"exit_code", "expectation", "sha256"} | ({"policy_exit"} if has_policy else set()))
             or type(handoff["exit_code"]) is not int or handoff["exit_code"] not in {0, 1, 3}
             or handoff["expectation"] != expected
-            or handoff["sha256"] != {name: digest(raw / name) for name in REPORTS}):
+            or handoff["sha256"] != {name: digest(raw / name) for name in artifacts}
+            or (has_policy and (type(handoff["policy_exit"]) is not int or handoff["policy_exit"] not in {0, 1}))):
         raise RunnerError("invalid or changed evaluation handoff")
     code = handoff["exit_code"]
     report = load_json(raw / "report.json", max_bytes=REPORT_LIMIT)
@@ -173,13 +216,25 @@ def gate_stage():
     actual = 3 if report["comparison"] and report["comparison"]["regressions"] else (1 if report["summary"]["failed"] else 0)
     if code != actual:
         raise RunnerError("handoff outcome disagrees with the validated JSON report")
+    policy_code = None
+    if has_policy:
+        verdict = evaluate_policy(report, load_rules(raw / "rules.json"))
+        policy_code = 0 if verdict["accepted"] else 1
+        if (policy_code != handoff["policy_exit"] or load_json(raw / "policy.json", max_bytes=RULES_LIMIT) != verdict
+                or (raw / "policy.md").read_text(encoding="utf-8") != render_policy_markdown(verdict)):
+            raise RunnerError("policy handoff disagrees with the recomputed verdict")
+    if expected == "policy-failure":
+        if code != 0 or policy_code != 1:
+            raise RunnerError("policy-failure verification requires evaluation 0 and policy 1")
+        print("Verified the deliberately failed budget produced evaluation 0 and policy 1.")
+        return 0
     if expected == "regression":
-        if code != 3:
-            raise RunnerError("regression verification expected exit 3")
+        if code != 3 or policy_code not in {None, 0}:
+            raise RunnerError("regression verification expected exit 3 and any policy to pass")
         print("Verified the deliberately regressed fixture produced exit 3.")
         return 0
     print(f"Applying recorded-evaluation gate: exit {code}.")
-    return code
+    return code or policy_code or 0
 
 
 def main():
