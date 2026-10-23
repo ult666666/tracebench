@@ -5,6 +5,7 @@ from decimal import Decimal, Inexact, Rounded, ROUND_DOWN, localcontext
 import hashlib
 import importlib
 import json
+from fractions import Fraction
 from pathlib import Path
 import tempfile
 import unittest
@@ -143,6 +144,78 @@ class PolicyTests(unittest.TestCase):
             rules = {"schema_version": 1, "max_p95_latency_ms": value}
             normalized = self.policy.validate_rules(rules)
             self.assertEqual(self.policy.validate_rules(normalized), normalized)
+
+    def test_near_one_with_100_significant_digits_reuses_exactly_for_all_rules(self):
+        value = "9" * 100 + "e-100"
+        canonical = "9." + "9" * 99 + "E-1"
+        report = recorded(passed=(True,), metrics=[{"latency_ms": 1, "input_tokens": 1, "output_tokens": 0}],
+                          pricing={"currency": "USD", "input_per_million": "1000000", "output_per_million": "0"})
+        for name, status in [("min_pass_rate", "pass"), ("max_p95_latency_ms", "fail"), ("max_total_cost", "fail")]:
+            with self.subTest(rule=name):
+                threshold = {"currency": "USD", "amount": value} if name == "max_total_cost" else value
+                rules = {"schema_version": 1, name: threshold}
+                original = deepcopy(rules)
+                normalized = self.policy.validate_rules(rules)
+                normalized_text = normalized[name]["amount"] if name == "max_total_cost" else normalized[name]
+                self.assertEqual(normalized_text, canonical)
+                self.assertEqual(Fraction(normalized_text), Fraction(value))
+                self.assertEqual(self.policy.validate_rules(normalized), normalized)
+                verdict = self.policy.evaluate_policy(report, normalized)
+                self.assertEqual(verdict["rules"][0]["status"], status)
+                self.assertEqual(self.policy.evaluate_policy(report, rules), verdict)
+                self.assertEqual(rules, original)
+
+    def test_normalization_sweep_is_bounded_exact_canonical_and_context_independent(self):
+        # Accepted inputs are selected by exact rational magnitude, independently
+        # of the production decimal parser/normalizer. No production helper is
+        # used to construct the expected values or permitted representation bounds.
+        mantissas = ["0", "0" * 100, "1", "9" * 100, "1" + "0" * 99,
+                     "0" * 99 + "1", "0" * 49 + "12345" + "0" * 46,
+                     "1." + "0" * 98, "0." + "9" * 99,
+                     "9" * 50 + "." + "9" * 50, "00.001200", "1.2300"]
+        report = recorded(passed=(True,), metrics=[{"latency_ms": 0, "input_tokens": 0, "output_tokens": 0}],
+                          pricing={"currency": "USD", "input_per_million": "0", "output_per_million": "0"})
+        lower, upper = Fraction(1, 10 ** 100), Fraction(10 ** 101)
+        canonical_by_value = {}
+        checked = 0
+        with localcontext() as context:
+            context.prec, context.Emin, context.Emax = 1, -1, 1
+            for trap in context.traps:
+                context.traps[trap] = True
+            context.clear_flags()
+            before = (context.prec, context.Emin, context.Emax, context.rounding, dict(context.traps), dict(context.flags))
+            for exponent in range(-100, 101):
+                for mantissa in mantissas:
+                    source = f"{mantissa}e{exponent}"
+                    exact = Fraction(source)
+                    if exact and not lower <= exact < upper:
+                        continue
+                    for name in ("min_pass_rate", "max_p95_latency_ms", "max_total_cost"):
+                        if name == "min_pass_rate" and exact > 1:
+                            continue
+                        with self.subTest(rule=name, source=source):
+                            threshold = {"currency": "USD", "amount": source} if name == "max_total_cost" else source
+                            rules = {"schema_version": 1, name: threshold}
+                            original = deepcopy(rules)
+                            normalized = self.policy.validate_rules(rules)
+                            text = normalized[name]["amount"] if name == "max_total_cost" else normalized[name]
+                            self.assertRegex(text, r"^[0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$")
+                            coefficient, _, scale = text.lower().partition("e")
+                            self.assertLessEqual(len(text), 128)
+                            self.assertLessEqual(sum(character.isdigit() for character in coefficient), 100)
+                            self.assertLessEqual(abs(int(scale or "0")), 100)
+                            self.assertEqual(Fraction(text), exact)
+                            self.assertEqual(self.policy.validate_rules(normalized), normalized)
+                            self.assertTrue(self.policy.evaluate_policy(report, normalized)["accepted"])
+                            self.assertEqual(rules, original)
+                            key = (name, exact)
+                            if key in canonical_by_value:
+                                self.assertEqual(text, canonical_by_value[key])
+                            else:
+                                canonical_by_value[key] = text
+                            checked += 1
+            self.assertEqual((context.prec, context.Emin, context.Emax, context.rounding, dict(context.traps), dict(context.flags)), before)
+        self.assertGreater(checked, 5000)
 
     def test_report_validation_is_not_bypassed(self):
         report = recorded()

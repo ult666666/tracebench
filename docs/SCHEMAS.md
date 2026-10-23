@@ -114,7 +114,9 @@ characters, 100 mantissa digits including leading/trailing zeros, explicit expon
 magnitude at most 100, and adjusted exponent magnitude at most 100. No whitespace,
 leading sign, separators or nonfinite values are permitted. Scientific notation
 allows exact `1e-100` and `1e100`. Normalization uses fixed notation when it fits
-these limits, otherwise preserves a bounded scientific representation. Zero is
+these limits, otherwise emits exact scientific notation with insignificant
+fractional coefficient zeros removed and a normalized exponent. Equal numeric
+values normalize identically, and the result obeys the same input bounds. Zero is
 valid; `-0` is outside the syntax.
 
 The CLI rules reader is limited to **65,536 bytes**, including whitespace. Its

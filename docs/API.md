@@ -79,7 +79,10 @@ Path("reports/policy.md").write_text(render_policy_markdown(verdict), encoding="
 `evaluate_policy(report, rules)` first runs the existing schema 1 report validator,
 then validates the separate versioned rules. It returns a separate version 1
 verdict without mutating either argument. `validate_rules(rules)` returns reusable
-normalized rule strings; `load_rules(path)` validates strict JSON up to 64 KiB and
+normalized rule strings that obey the original bounds and can be passed back to
+`validate_rules`, `evaluate_policy`, or saved for the CLI. Equal numeric thresholds
+normalize identically without ambient Decimal rounding. `load_rules(path)`
+validates strict JSON up to 64 KiB and
 returns the parsed rules. `render_policy_markdown(verdict)` expects a verdict from
 `evaluate_policy`; `render_json` also serializes verdicts.
 

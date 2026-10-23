@@ -340,6 +340,23 @@ class InstalledGeneratedReportLimitTests(unittest.TestCase):
         (self.workspace / "linked-rules.json").symlink_to(self.workspace / "rules.json")
         self.assertEqual(self.stage("evaluate", TB_RULES="linked-rules.json").returncode, 2)
 
+    def test_installed_normalized_near_one_rules_survive_runner_snapshot_and_gate(self):
+        script = ("import json, sys; from tracebench.policy import validate_rules; "
+                  "r=validate_rules({'schema_version':1,'min_pass_rate':'9'*100+'e-100'}); "
+                  "open(sys.argv[1],'w').write(json.dumps(r))")
+        path = self.workspace / "rules.json"
+        result = subprocess.run([str(self.python), "-c", script, str(path)], cwd=self.directory,
+                                env=self.env, capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.env["TB_RULES"] = "rules.json"
+        result = self.stage("evaluate")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        reports = self.staged_reports()
+        self.assertEqual((reports / "rules.json").read_bytes(), path.read_bytes())
+        self.assertTrue(json.loads((reports / "policy.json").read_text())["accepted"])
+        result = self.stage("gate", TB_REPORT_DIR=str(reports))
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_gate_selection_cannot_silently_drop_a_selected_policy_from_the_handoff(self):
         self.policy_rules({"min_pass_rate": "1"})
         self.assertEqual(self.stage("evaluate").returncode, 0)

@@ -448,3 +448,43 @@ fixture files and declares 0.4.0. The literal pin is added in this later docs
 commit so it names a real ancestor. Preserve it through merge-commit integration;
 if independent review changes runtime or workflow code, commit the complete fix
 first and update both pins to that newer actual implementation ancestor.
+
+## 0.4.0 independent-review repair: reusable normalized thresholds
+
+Independent review of `088d19fdf19e97676f9fe3483002083bcd4b4fc2` found that
+`validate_rules` accepted `"9" * 100 + "e-100"` but returned `"0." + "9" * 100`.
+The leading zero made that normalized string exceed the unchanged 100-mantissa-
+digit bound. Reusing the returned object through validation, evaluation or the
+CLI failed. The fallback used `str(Decimal)`, which can still choose fixed
+notation near zero. All three threshold types were independently reproduced.
+
+The repair changes only threshold normalization: when fixed notation exceeds the
+existing bound, explicit `E` formatting retains the exact coefficient, removes
+insignificant fractional coefficient zeros and normalizes the exponent. Its
+scientific exponent is the already-bounded adjusted exponent, its coefficient
+has at most the original 100 digits, and the result fits the original 128-character
+limit. Equal numeric values normalize identically. No float, Decimal arithmetic,
+input-limit relaxation, report-schema change or caller-context mutation occurs.
+
+Four new regression methods first produced **50 failing subtests**, then passed:
+all three 100-significant-digit near-one thresholds with exact pass/fail oracles;
+a deterministic **5,331-rule** sweep over twelve coefficient/leading-zero/trailing-
+zero patterns and every exponent **-100 through 100**; a real installed-wheel
+API-to-file-to-policy-CLI round trip; and installed runner snapshot/final-gate
+reuse. The sweep independently uses exact `Fraction` values to select in-bound
+inputs and verify value preservation, bounded output, idempotence, equal-value
+canonicalization and immutable inputs. Decimal precision 1, Emin -1, Emax 1,
+all traps enabled and flags remain unchanged throughout.
+
+After the repair, the complete **106-test** suite passed on **Python 3.13.7**
+(**34.009 seconds**) and **Python 3.15.0** (**32.098 seconds**) with zero
+failures/errors. The existing fresh source/wheel/source-archive harness was run
+again after the fix. All three offline installations report 0.4.0, preserve
+installed demo and normal/expected-policy/regression gates, and pass required
+real Chromium 149.0.7827.55 desktop/mobile, full text, search/filter, keyboard,
+no-JavaScript, print, hostile-markup and zero-HTTP(S)-request checks.
+`actionlint 1.7.7` and `git diff --check` pass. Existing input/evaluation/rendering
+modules, both CI workflows/runner, Pages and sample bytes are unchanged by this
+scoped repair. Hosted probe refresh, scoped independent re-review and publication
+remain separate parent-owned work; the original independent review record is
+retained unchanged.

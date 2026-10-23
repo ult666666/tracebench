@@ -132,6 +132,20 @@ class InstalledPolicyCliTests(unittest.TestCase):
             self.assertEqual([r["status"] for r in verdict["rules"]], ["pass", "pass" if code == 0 else "fail", "pass"])
         self.assertEqual(self.report.read_bytes(), original)
 
+    def test_installed_api_normalized_100_digit_rules_reload_and_evaluate_in_cli(self):
+        script = ("import json, sys; from tracebench.policy import validate_rules; "
+                  "v='9'*100+'e-100'; "
+                  "r={'schema_version':1,'min_pass_rate':v,'max_p95_latency_ms':v,"
+                  "'max_total_cost':{'currency':'USD','amount':v}}; "
+                  "open(sys.argv[1],'w').write(json.dumps(validate_rules(r)))")
+        normalized = subprocess.run([str(self.python), "-c", script, str(self.rules)], cwd=self.directory,
+                                    env=self.env, capture_output=True, text=True, timeout=10)
+        self.assertEqual(normalized.returncode, 0, normalized.stderr)
+        result = self.policy()
+        self.assertEqual(result.returncode, 1, result.stderr)
+        verdict = json.loads(result.stdout)
+        self.assertEqual([rule["status"] for rule in verdict["rules"]], ["pass", "fail", "pass"])
+
     def test_original_evaluate_exit_zero_one_two_three_is_unchanged(self):
         baseline = self.directory / "baseline.json"
         args = ["evaluate", "--cases", ROOT / "fixtures/cases.jsonl", "--outputs", ROOT / "fixtures/clean.jsonl"]

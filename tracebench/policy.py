@@ -32,7 +32,16 @@ def _threshold(value):
 
 def _rule_text(number):
     text = _decimal_text(number)
-    return text if len(text.replace(".", "")) <= 100 and len(text) <= 128 else str(number)
+    if len(text.replace(".", "")) <= 100 and len(text) <= 128:
+        return text
+    # Decimal.__str__ can still choose fixed notation near zero. Explicit E
+    # formatting retains every coefficient digit without using context precision;
+    # its exponent is the already-bounded adjusted exponent. Remove insignificant
+    # coefficient zeros so equal values have the same reusable representation.
+    coefficient, exponent = format(number, "E").split("E")
+    if "." in coefficient:
+        coefficient = coefficient.rstrip("0").rstrip(".")
+    return f"{coefficient}E{int(exponent)}"
 
 
 def validate_rules(rules):
