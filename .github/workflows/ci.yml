@@ -10,9 +10,9 @@ permissions:
 jobs:
   normal-regression-gate:
     name: Upload regression reports then fail the normal gate
-    uses: ult666666/tracebench/.github/workflows/recorded-evaluation.yml@d0ee3f13ef8a9af669e39789cd9b113bb75b7d27
+    uses: ult666666/tracebench/.github/workflows/recorded-evaluation.yml@9cfe62a4afd613fc9a15e24018cdf77bc8f65977
     with:
-      tracebench-ref: ce9b77c75887f12fa668db91eb7a8682a8303285
+      tracebench-ref: 9cfe62a4afd613fc9a15e24018cdf77bc8f65977
       cases: fixtures/cases.jsonl
       outputs: fixtures/regression.jsonl
       baseline: fixtures/baseline-report.json
