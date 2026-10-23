@@ -1,5 +1,7 @@
 # TraceBench
 
+[![Tests](https://github.com/ult666666/tracebench/actions/workflows/ci.yml/badge.svg)](https://github.com/ult666666/tracebench/actions/workflows/ci.yml)
+
 **Inspect recorded AI outputs before a prompt change ships.** TraceBench is a
 small offline evaluator: join cases to outputs by ID, apply deterministic checks,
 calculate explicitly priced token costs, and stop on baseline regressions.
