@@ -56,6 +56,31 @@ jobs:
       artifact-name: synthetic-regression-reports
       expectation: regression
 
+  recorded-budget-pass:
+    name: Synthetic budget accepted by real combined gate
+    uses: ./.github/workflows/recorded-evaluation.yml
+    with:
+      tracebench-ref: ${{ github.sha }}
+      cases: fixtures/cases.jsonl
+      outputs: fixtures/clean.jsonl
+      baseline: fixtures/baseline-report.json
+      pricing: fixtures/pricing.json
+      rules: fixtures/budget-pass.json
+      artifact-name: synthetic-budget-pass-reports
+
+  recorded-budget-failure-verification:
+    name: Verify synthetic budget failure (evaluation 0, policy 1)
+    uses: ./.github/workflows/recorded-evaluation.yml
+    with:
+      tracebench-ref: ${{ github.sha }}
+      cases: fixtures/cases.jsonl
+      outputs: fixtures/clean.jsonl
+      baseline: fixtures/baseline-report.json
+      pricing: fixtures/pricing.json
+      rules: fixtures/budget-fail.json
+      artifact-name: synthetic-budget-fail-reports
+      expectation: policy-failure
+
   browser:
     name: Real HTML browser interactions (development only)
     runs-on: ubuntu-latest

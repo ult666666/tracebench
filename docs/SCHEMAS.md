@@ -88,3 +88,60 @@ Comparison is null unless a baseline is supplied. Then it contains
 `baseline_passed`, `current_passed`, sorted `regressions` and `improvements` ID
 arrays, and an `unchanged` count. Report totals and statuses are validated for
 internal consistency before a report is accepted as a baseline.
+
+## Policy rules version 1 (separate document)
+
+An object with integer `schema_version: 1` and at least one selected threshold:
+
+```json
+{
+  "schema_version": 1,
+  "min_pass_rate": "1",
+  "max_p95_latency_ms": "210",
+  "max_total_cost": {"currency": "USD", "amount": "0.0000327"}
+}
+```
+
+Only these keys are accepted. `min_pass_rate` is a decimal string between 0 and 1;
+`max_p95_latency_ms` is a nonnegative decimal string in milliseconds.
+`max_total_cost` has exactly uppercase three-letter `currency` and nonnegative
+`amount` decimal string. Currency is a caller-supplied unit label; no conversion
+or price lookup occurs. JSON numbers, booleans, nulls, duplicate/unknown keys,
+empty policies and unsupported schema versions are errors.
+
+Threshold syntax is `[0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?`, with at most 128
+characters, 100 mantissa digits including leading/trailing zeros, explicit exponent
+magnitude at most 100, and adjusted exponent magnitude at most 100. No whitespace,
+leading sign, separators or nonfinite values are permitted. Scientific notation
+allows exact `1e-100` and `1e100`. Normalization uses fixed notation when it fits
+these limits, otherwise emits exact scientific notation with insignificant
+fractional coefficient zeros removed and a normalized exponent. Equal numeric
+values normalize identically, and the result obeys the same input bounds. Zero is
+valid; `-0` is outside the syntax.
+
+The CLI rules reader is limited to **65,536 bytes**, including whitespace. Its
+separate evaluation-report reader permits **67,108,864 bytes** and uses unchanged
+schema 1 report validation. This does not raise the evaluate baseline reader's
+**16,777,216-byte** bound. File limits do not apply to direct API objects.
+
+## Policy verdict version 1 (separate from report schema 1)
+
+Fixed root keys: `schema_version` (integer 1), `suite_sha256`,
+`evaluation_sha256`, `evaluation`, `accepted` (Boolean), `rules`, and `notice`.
+`evaluation` contains integer `cases`, `passed`, `failed`, and `regressions`.
+`evaluation_sha256` identifies `render_json(report).encode("utf-8")`, including
+the final newline, rather than the original source file encoding.
+
+`rules` is a nonempty list, ordered `min_pass_rate`, `max_p95_latency_ms`, then
+`max_total_cost`, omitting unselected rules. Every entry contains exactly `rule`,
+`threshold`, `actual`, `status`, and `reason`. Thresholds are normalized decimal
+strings, except cost uses `{currency, amount}`. Actual pass rate is exact integer
+`{passed, cases}`, actual p95 is a decimal string, and actual cost uses
+`{currency, amount}`. Actual is null when unavailable. Status is one of `pass`,
+`fail`, `unavailable`; every selected entry must be `pass` for acceptance.
+
+Reasons are fixed text for satisfied/unsatisfied thresholds, incomplete supplied
+latency coverage, incomplete token/pricing coverage, and mismatched currency.
+The notice explicitly limits the verdict to supplied recorded observations and
+preserves the independent evaluation status. No case selectors, executable
+expressions, model calls, rate feeds or authorization decisions are supported.

@@ -344,3 +344,154 @@ That actual commit contains the repaired runner, workflow and all referenced
 package/browser/fixture files at version 0.3.0. It supersedes the original
 `ce9b77c…` example pin above; preserving this ancestor during merge retains the
 reviewed source provenance.
+
+## 0.4.0: exact recorded-observation budgets (local evidence)
+
+On **2026-10-23**, the supplied clean base at
+`60351fb1342d85a52b2e9ce2ceb6c84a503cfc7d` passed **77 tests** before work.
+The complete policy implementation now passes **102 tests**, zero failures/errors,
+on **Python 3.13.7** and **Python 3.15.0** on macOS. Runtime dependencies remain
+empty; no provider was called or timed. The policy module and CLI use separate
+schema 1 rules/verdicts and preserve the existing evaluation schema and gates.
+
+```sh
+python3.13 -m unittest discover -v
+python3 -m unittest discover -v
+reports/t8/tooling/actionlint -color
+git diff --check
+```
+
+Tests were written before implementation. Ten initial policy methods failed for
+the missing module. A further extreme-boundary test exposed that fixed decimal
+normalization could produce a rule string beyond its own mantissa bound;
+normalization now preserves bounded scientific notation when needed and is
+reusable. Six initial installed-wheel CLI methods exposed the absent policy
+subcommand while the original evaluate exit-code test already passed. Five
+initial installed-runner methods exposed missing optional artifacts, gates and
+invalid-rules handling; all were rerun green. Version tests failed against 0.3.0
+before metadata/runtime advanced to 0.4.0. The tracked synthetic budget-fixture
+check failed before its rule files were added, then passed.
+
+Independent hand-derived numeric checks cover 1/3 passed against `0.3333331`
+(pass) and `0.3333334` (fail), inclusive exact cost/latency boundaries including
+very small/large values, nearest-rank p95, all selected rules together, complete
+supplied zero observations versus absent/partial coverage, missing prices and
+wrong currency. Caller Decimal precision, rounding, traps and flags remain
+unchanged. Invalid versions, unknown/duplicate keys, numeric/Boolean thresholds,
+nonfinite values, malformed/excessive decimal syntax and byte bounds reject.
+Reports are revalidated using the unchanged schema 1 validator.
+
+Installed policy CLI tests run outside the checkout without `PYTHONPATH`. They
+prove accepted/rejected/unavailable/invalid outcomes 0/1/2, JSON/Markdown output,
+64 KiB rules and 64 MiB evaluation limits, actual input aliases/hardlinks/symlinks,
+failed atomic replacement cleanup and original evaluate 0/1/2/3. Budget acceptance
+can retain visible failed cases. No evaluation report bytes are rewritten.
+
+Real installed-wheel runner tests verify the exact default five-file versus
+optional eight-file set, all artifact hashes, original evaluation and separate
+policy status in provenance/summary, rules snapshots, copied upload handoffs,
+0/1/unavailable/invalid policy, original evaluation 1/3 priority, deliberate
+policy-failure assertions and recomputed-verdict tamper rejection. The existing
+large-report tests still independently exercise both 64 MiB readers, valid
+reports above 16 MiB on outcomes 0/1/3, generated reports above 64 MiB and the
+unchanged 16 MiB baseline input bound. A preservation test compares all three
+evaluation formats with and without policy and checks default handoff shape.
+
+Author self-review found that inferring policy selection only from staged files
+could silently accept a handoff after its entire optional set was removed. The
+new regression first observed exit 0; after the fix it receives exit 2. The final
+workflow gate independently carries the selected `TB_RULES` marker and requires
+the exact corresponding artifact set, then recomputes policy from the snapshot.
+It does not reopen the caller path. Copied artifacts remain usable after the
+original rules file disappears. All 102 tests were rerun after this repair.
+No author-review critical/important findings remain; independent review is
+separate parent-owned work.
+
+Fresh **0.4.0** environments under ignored
+`reports/observation-budgets/fresh-installs/{source,wheel,sdist}` installed the
+source checkout, built wheel and built source archive with
+`pip install --no-cache-dir --no-index`. Metadata/runtime/console version all
+agree. Each real console script ran outside the checkout and passed the original
+demo, installed runner gates (default 0/3, policy 0/1, explicit policy-failure 0,
+regression priority 3 and explicit expected-regression 0), and required real
+Chromium verification. The source-archive route used its own extracted verifier,
+runner and fixtures. The wheel includes `policy.py` and no runtime dependencies.
+
+With **Node 24.18.0**, pinned development-only **Playwright 1.61.1**, and actual
+**Chromium 149.0.7827.55**, all three installed environments retained the existing
+desktop/mobile 1280/390/320 px layouts, full text, search, all filters, keyboard,
+no-JavaScript expansion, print, hostile-markup checks and zero HTTP(S) requests.
+The unchanged HTML sample retains SHA-256
+`0f4bad9a7d8e4ae6bcc1a141f058f4562359a44c07527a05eef5643a4e757ddc`.
+Git diff confirms Pages workflow, sample, existing evaluation/JSON/Markdown/HTML
+renderers and input validators are unchanged from the supplied base.
+
+**actionlint 1.7.7** and `git diff --check` pass. The actual workflow's pre-checkout
+Python option block was executed: all three finite expectations were accepted,
+and invalid/injection-like expectation strings were rejected with no handoff.
+Own CI source calls the reusable workflow for real synthetic budget acceptance
+and a separately named expected-budget-failure assertion. Local subprocess and
+syntax checks do not establish hosted job behavior.
+
+Limits: no local Python 3.11 run, new browser/platform/accessibility/load/security
+audit, provider measurement or authenticated-observation claim. Actual hosted
+own-CI calls, normal failing-budget probe, retained artifact inspection, Pages,
+independent review, merge and release are separate parent-owned evidence. These
+observations are caller-supplied data, not measured provider benchmarks, safety
+verdicts or spending authorization.
+
+The 0.4.0 consumer example now pins actual fixed implementation ancestor
+`22187e91ada6bede9869e95b9314723c54687ba6` for both reusable workflow and source.
+That commit was created only after the complete implementation, selection-guard
+repair and verification above; it contains all referenced package/runner/workflow/
+fixture files and declares 0.4.0. The literal pin is added in this later docs
+commit so it names a real ancestor. Preserve it through merge-commit integration;
+if independent review changes runtime or workflow code, commit the complete fix
+first and update both pins to that newer actual implementation ancestor.
+
+## 0.4.0 independent-review repair: reusable normalized thresholds
+
+Independent review of `088d19fdf19e97676f9fe3483002083bcd4b4fc2` found that
+`validate_rules` accepted `"9" * 100 + "e-100"` but returned `"0." + "9" * 100`.
+The leading zero made that normalized string exceed the unchanged 100-mantissa-
+digit bound. Reusing the returned object through validation, evaluation or the
+CLI failed. The fallback used `str(Decimal)`, which can still choose fixed
+notation near zero. All three threshold types were independently reproduced.
+
+The repair changes only threshold normalization: when fixed notation exceeds the
+existing bound, explicit `E` formatting retains the exact coefficient, removes
+insignificant fractional coefficient zeros and normalizes the exponent. Its
+scientific exponent is the already-bounded adjusted exponent, its coefficient
+has at most the original 100 digits, and the result fits the original 128-character
+limit. Equal numeric values normalize identically. No float, Decimal arithmetic,
+input-limit relaxation, report-schema change or caller-context mutation occurs.
+
+Four new regression methods first produced **50 failing subtests**, then passed:
+all three 100-significant-digit near-one thresholds with exact pass/fail oracles;
+a deterministic **5,331-rule** sweep over twelve coefficient/leading-zero/trailing-
+zero patterns and every exponent **-100 through 100**; a real installed-wheel
+API-to-file-to-policy-CLI round trip; and installed runner snapshot/final-gate
+reuse. The sweep independently uses exact `Fraction` values to select in-bound
+inputs and verify value preservation, bounded output, idempotence, equal-value
+canonicalization and immutable inputs. Decimal precision 1, Emin -1, Emax 1,
+all traps enabled and flags remain unchanged throughout.
+
+After the repair, the complete **106-test** suite passed on **Python 3.13.7**
+(**34.009 seconds**) and **Python 3.15.0** (**32.098 seconds**) with zero
+failures/errors. The existing fresh source/wheel/source-archive harness was run
+again after the fix. All three offline installations report 0.4.0, preserve
+installed demo and normal/expected-policy/regression gates, and pass required
+real Chromium 149.0.7827.55 desktop/mobile, full text, search/filter, keyboard,
+no-JavaScript, print, hostile-markup and zero-HTTP(S)-request checks.
+`actionlint 1.7.7` and `git diff --check` pass. Existing input/evaluation/rendering
+modules, both CI workflows/runner, Pages and sample bytes are unchanged by this
+scoped repair. Hosted probe refresh, scoped independent re-review and publication
+remain separate parent-owned work; the original independent review record is
+retained unchanged.
+
+After that complete repair was committed, both external workflow/source pins
+were updated in a separate documentation commit to fixed ancestor
+`8c168e5c3b4f4ee68e298086291bdb7ac9b2992a`. It contains the normalization fix,
+all referenced 0.4.0 package/workflow/runner/fixture files and regression tests,
+and supersedes the earlier `22187e9…` consumer example pin. Preserve this actual
+ancestor through merge-commit integration.

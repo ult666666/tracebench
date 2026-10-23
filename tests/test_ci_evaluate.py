@@ -229,6 +229,173 @@ class InstalledGeneratedReportLimitTests(unittest.TestCase):
         self.assertGreater(size, 16 * 1024 * 1024)
         self.assertLess(size, 64 * 1024 * 1024)
 
+    def policy_rules(self, value):
+        path = self.workspace / "rules.json"
+        path.write_text(json.dumps({"schema_version": 1, **value}))
+        self.env["TB_RULES"] = "rules.json"
+        return "rules.json"
+
+    def staged_reports(self):
+        return Path(dict(line.split("=", 1) for line in self.output.read_text().splitlines())["report_dir"])
+
+    def test_optional_policy_artifacts_hashes_copied_handoff_and_real_combined_gate(self):
+        for rules, policy_code, status in [({"min_pass_rate": "1"}, 0, "pass"),
+                                           ({"max_p95_latency_ms": "0"}, 1, "unavailable")]:
+            with self.subTest(status=status):
+                self.output.write_text("")
+                path = self.policy_rules(rules)
+                result = self.stage("evaluate", TB_RULES=path)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                reports = self.staged_reports()
+                expected = {"report.json", "report.md", "report.html", "provenance.json", "gate.json",
+                            "policy.json", "policy.md", "rules.json"}
+                self.assertEqual({p.name for p in reports.iterdir()}, expected)
+                verdict = json.loads((reports / "policy.json").read_text())
+                self.assertEqual(verdict["rules"][0]["status"], status)
+                provenance = json.loads((reports / "provenance.json").read_text())
+                self.assertEqual(provenance["evaluation_exit"], 0)
+                self.assertEqual(provenance["policy_exit"], policy_code)
+                self.assertEqual((reports / "rules.json").read_bytes(), (self.workspace / path).read_bytes())
+                handoff = json.loads((reports / "gate.json").read_text())
+                self.assertEqual(handoff["policy_exit"], policy_code)
+                self.assertEqual(set(handoff["sha256"]), expected - {"gate.json"})
+                self.assertEqual(handoff["sha256"], {name: hashlib.sha256((reports / name).read_bytes()).hexdigest()
+                                                       for name in expected - {"gate.json"}})
+                self.assertIn(f"Policy exit: **{policy_code}**", (self.directory / "summary.md").read_text())
+                copy = self.runtime / ("tracebench-copy-" + status)
+                shutil.copytree(reports, copy)
+                # Copied artifacts are independently usable after original caller rules disappear.
+                (self.workspace / path).unlink()
+                result = self.stage("gate", TB_REPORT_DIR=str(copy))
+                self.assertEqual(result.returncode, policy_code, result.stderr)
+
+    def test_optional_policy_preserves_evaluation_bytes_and_no_policy_handoff_shape(self):
+        self.assertEqual(self.stage("evaluate").returncode, 0)
+        plain = self.staged_reports()
+        files = ("report.json", "report.md", "report.html")
+        original = {name: (plain / name).read_bytes() for name in files}
+        handoff = json.loads((plain / "gate.json").read_text())
+        self.assertEqual(set(handoff), {"exit_code", "expectation", "sha256"})
+        self.assertNotIn("policy_exit", json.loads((plain / "provenance.json").read_text()))
+        self.assertNotIn("Policy exit:", (self.directory / "summary.md").read_text())
+        self.output.write_text("")
+        self.assertEqual(self.stage("evaluate", TB_RULES=self.policy_rules({"min_pass_rate": "1"})).returncode, 0)
+        budgeted = self.staged_reports()
+        self.assertEqual({name: (budgeted / name).read_bytes() for name in files}, original)
+
+    def test_numeric_budget_failure_expected_check_and_original_regression_priority(self):
+        rows = [json.loads(line) for line in (self.workspace / "outputs.jsonl").read_text().splitlines()]
+        for row in rows:
+            row["metrics"] = {"latency_ms": 1}
+        (self.workspace / "outputs.jsonl").write_text("".join(json.dumps(row) + "\n" for row in rows))
+        rules = self.policy_rules({"max_p95_latency_ms": "0"})
+        result = self.stage("evaluate", TB_RULES=rules)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        reports = self.staged_reports()
+        self.assertEqual(json.loads((reports / "policy.json").read_text())["rules"][0]["status"], "fail")
+        self.assertEqual(self.stage("gate", TB_REPORT_DIR=str(reports)).returncode, 1)
+        self.output.write_text("")
+        result = self.stage("evaluate", TB_RULES=rules, TB_EXPECTATION="policy-failure")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.stage("gate", TB_REPORT_DIR=str(self.staged_reports()), TB_EXPECTATION="policy-failure").returncode, 0)
+        # A permissive policy cannot erase original check failure or regression.
+        for baseline, code in [("", 1), ("baseline.json", 3)]:
+            self.output.write_text("")
+            self.recorded_outputs(large=False, failed=True)
+            self.policy_rules({"min_pass_rate": "0"})
+            result = self.stage("evaluate", TB_RULES=rules, TB_BASELINE=baseline)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(self.stage("gate", TB_REPORT_DIR=str(self.staged_reports())).returncode, code)
+        # A failed/unavailable policy also preserves regression exit priority.
+        self.output.write_text("")
+        self.policy_rules({"max_p95_latency_ms": "0"})
+        self.assertEqual(self.stage("evaluate", TB_RULES=rules, TB_BASELINE="baseline.json").returncode, 0)
+        self.assertEqual(self.stage("gate", TB_REPORT_DIR=str(self.staged_reports())).returncode, 3)
+
+    def test_expected_budget_failure_requires_policy_and_clean_evaluation_and_failure(self):
+        for rule, expected in [(None, 2), ({"min_pass_rate": "1"}, 2), ({"max_p95_latency_ms": "0"}, 0)]:
+            self.output.write_text("")
+            changes = {"TB_EXPECTATION": "policy-failure", "TB_RULES": self.policy_rules(rule) if rule else ""}
+            result = self.stage("evaluate", **changes)
+            if rule is None:
+                self.assertEqual(result.returncode, 2, result.stderr)
+                continue
+            self.assertEqual(result.returncode, 0, result.stderr)
+            gate = self.stage("gate", TB_REPORT_DIR=str(self.staged_reports()), TB_EXPECTATION="policy-failure")
+            self.assertEqual(gate.returncode, expected, gate.stderr)
+        self.output.write_text("")
+        self.recorded_outputs(large=False, failed=True)
+        self.assertEqual(self.stage("evaluate", TB_RULES="rules.json", TB_EXPECTATION="policy-failure").returncode, 0)
+        self.assertEqual(self.stage("gate", TB_REPORT_DIR=str(self.staged_reports()), TB_EXPECTATION="policy-failure").returncode, 2)
+
+    def test_invalid_and_oversize_rules_remove_staging_and_do_not_emit_handoff(self):
+        for value in ["{}", '{"schema_version":1,"min_pass_rate":0}',
+                      '{"schema_version":1,"min_pass_rate":"0"}' + " " * 65536]:
+            (self.workspace / "rules.json").write_text(value)
+            self.output.write_text("")
+            result = self.stage("evaluate", TB_RULES="rules.json")
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertEqual(self.output.read_text(), "")
+            self.assertEqual(list(self.runtime.iterdir()), [])
+        (self.workspace / "linked-rules.json").symlink_to(self.workspace / "rules.json")
+        self.assertEqual(self.stage("evaluate", TB_RULES="linked-rules.json").returncode, 2)
+
+    def test_installed_normalized_near_one_rules_survive_runner_snapshot_and_gate(self):
+        script = ("import json, sys; from tracebench.policy import validate_rules; "
+                  "r=validate_rules({'schema_version':1,'min_pass_rate':'9'*100+'e-100'}); "
+                  "open(sys.argv[1],'w').write(json.dumps(r))")
+        path = self.workspace / "rules.json"
+        result = subprocess.run([str(self.python), "-c", script, str(path)], cwd=self.directory,
+                                env=self.env, capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.env["TB_RULES"] = "rules.json"
+        result = self.stage("evaluate")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        reports = self.staged_reports()
+        self.assertEqual((reports / "rules.json").read_bytes(), path.read_bytes())
+        self.assertTrue(json.loads((reports / "policy.json").read_text())["accepted"])
+        result = self.stage("gate", TB_REPORT_DIR=str(reports))
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_gate_selection_cannot_silently_drop_a_selected_policy_from_the_handoff(self):
+        self.policy_rules({"min_pass_rate": "1"})
+        self.assertEqual(self.stage("evaluate").returncode, 0)
+        reports = self.staged_reports()
+        gate = reports / "gate.json"
+        handoff = json.loads(gate.read_text())
+        handoff.pop("policy_exit")
+        for name in ("rules.json", "policy.json", "policy.md"):
+            (reports / name).unlink()
+            handoff["sha256"].pop(name)
+        gate.write_text(json.dumps(handoff))
+        # The workflow carries the selected rules marker into the gate independently.
+        result = self.stage("gate", TB_REPORT_DIR=str(reports))
+        self.assertEqual(result.returncode, 2, result.stderr)
+
+    def test_policy_gate_recomputes_verdict_and_rejects_optional_extra_missing_or_changed_files(self):
+        self.policy_rules({"min_pass_rate": "1"})
+        self.assertEqual(self.stage("evaluate", TB_RULES="rules.json").returncode, 0)
+        reports = self.staged_reports()
+        verdict = reports / "policy.json"
+        original = verdict.read_bytes()
+        value = json.loads(original)
+        value["accepted"] = False
+        verdict.write_text(json.dumps(value))
+        gate = reports / "gate.json"
+        handoff = json.loads(gate.read_text())
+        handoff["sha256"]["policy.json"] = hashlib.sha256(verdict.read_bytes()).hexdigest()
+        gate.write_text(json.dumps(handoff))
+        self.assertEqual(self.stage("gate", TB_REPORT_DIR=str(reports)).returncode, 2)
+        verdict.write_bytes(original)
+        handoff["sha256"]["policy.json"] = hashlib.sha256(original).hexdigest()
+        gate.write_text(json.dumps(handoff))
+        extra = reports / "secret.txt"
+        extra.write_text("unrelated")
+        self.assertEqual(self.stage("gate", TB_REPORT_DIR=str(reports)).returncode, 2)
+        extra.unlink()
+        (reports / "rules.json").unlink()
+        self.assertEqual(self.stage("gate", TB_REPORT_DIR=str(reports)).returncode, 2)
+
     def test_evaluate_and_upload_handoff_accept_large_reports_from_installed_cli(self):
         # Removing the explicit generated-report read bound rejects otherwise valid input on all three outcomes.
         for code, failed, baseline in [(0, False, ""), (1, True, ""), (3, True, "baseline.json")]:

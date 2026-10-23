@@ -63,3 +63,38 @@ newlines, CR and NUL. Case inputs and expected values are absent from report v1 
 are explicitly labelled as unavailable. All supplied dynamic values occupy escaped
 text nodes; only fixed status values appear in attributes. No report data is embedded
 in JavaScript or CSS. See [HTML reporting](HTML.md) for the optional browser verifier.
+
+## Recorded-observation policy (0.4.0)
+
+```python
+from tracebench.policy import evaluate_policy, load_rules, render_policy_markdown, validate_rules
+
+verdict = evaluate_policy(candidate, load_rules("fixtures/budget-pass.json"))
+assert verdict["accepted"] is True
+assert verdict["evaluation"]["failed"] == 0
+Path("reports/policy.json").write_text(render_json(verdict), encoding="utf-8")
+Path("reports/policy.md").write_text(render_policy_markdown(verdict), encoding="utf-8")
+```
+
+`evaluate_policy(report, rules)` first runs the existing schema 1 report validator,
+then validates the separate versioned rules. It returns a separate version 1
+verdict without mutating either argument. `validate_rules(rules)` returns reusable
+normalized rule strings that obey the original bounds and can be passed back to
+`validate_rules`, `evaluate_policy`, or saved for the CLI. Equal numeric thresholds
+normalize identically without ambient Decimal rounding. `load_rules(path)`
+validates strict JSON up to 64 KiB and
+returns the parsed rules. `render_policy_markdown(verdict)` expects a verdict from
+`evaluate_policy`; `render_json` also serializes verdicts.
+
+All selected rules must pass. Missing/partial latency or token/pricing coverage,
+and a cost-currency mismatch, yield `unavailable` and reject the policy. A selected
+minimum pass rate uses exact integer counts rather than the rounded display.
+Comparisons use integer ratios and cross-products, with no floats or caller
+Decimal-context changes. Equal thresholds pass. Cost and latency remain supplied
+observations. A policy can accept selected budgets while evaluation cases still
+fail; the verdict always shows those failure and regression counts.
+
+`evaluation_sha256` hashes UTF-8 bytes from `render_json(report)`, including its
+trailing newline. This identifies that deterministic report serialization, not
+the original input file's whitespace, a semantic canonicalization of arbitrary
+JSON, or authenticated provenance. The suite fingerprint remains unchanged.
