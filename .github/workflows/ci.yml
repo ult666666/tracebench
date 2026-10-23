@@ -10,12 +10,15 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
       matrix:
         python-version: ['3.11', '3.13']
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: ${{ matrix.python-version }}
       - name: Test source, real CLI processes, and build artifacts
@@ -29,3 +32,63 @@ jobs:
         run: .venv/bin/python scripts/verify_demo.py --cli .venv/bin/tracebench
       - name: Verify HTML CLI and exact synthetic sample bytes
         run: .venv/bin/python scripts/verify_html.py --cli .venv/bin/tracebench
+
+  recorded-clean:
+    name: Synthetic clean evaluation gate
+    uses: ./.github/workflows/recorded-evaluation.yml
+    with:
+      tracebench-ref: ${{ github.sha }}
+      cases: fixtures/cases.jsonl
+      outputs: fixtures/clean.jsonl
+      baseline: fixtures/baseline-report.json
+      pricing: fixtures/pricing.json
+      artifact-name: synthetic-clean-reports
+
+  recorded-regression-verification:
+    name: Verify synthetic regression exits 3
+    uses: ./.github/workflows/recorded-evaluation.yml
+    with:
+      tracebench-ref: ${{ github.sha }}
+      cases: fixtures/cases.jsonl
+      outputs: fixtures/regression.jsonl
+      baseline: fixtures/baseline-report.json
+      pricing: fixtures/pricing.json
+      artifact-name: synthetic-regression-reports
+      expectation: regression
+
+  browser:
+    name: Real HTML browser interactions (development only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - name: Install exact locked development browser tooling
+        run: |
+          npm ci --ignore-scripts --prefix browser
+          browser/node_modules/.bin/playwright install --with-deps chromium
+      - name: Verify installed CLI and browser interactions, preserving exact sample bytes
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install --no-index .
+          .venv/bin/python scripts/verify_html.py --cli .venv/bin/tracebench --browser-module browser/node_modules/playwright --require-browser --artifacts "$RUNNER_TEMP/tracebench-browser"
+      - name: Upload only explicit synthetic HTML, screenshots and print report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: synthetic-html-browser
+          path: |
+            ${{ runner.temp }}/tracebench-browser/hostile.html
+            ${{ runner.temp }}/tracebench-browser/sample.html
+            ${{ runner.temp }}/tracebench-browser/desktop.png
+            ${{ runner.temp }}/tracebench-browser/mobile.png
+            ${{ runner.temp }}/tracebench-browser/print.pdf
+          if-no-files-found: error
+          retention-days: 7

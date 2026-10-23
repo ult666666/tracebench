@@ -77,14 +77,22 @@ verification failure even if the text appears identical. The script
 also compares renderer output to real CLI stdout and atomic files, checks all exit
 codes, and checks input protection. It bounds every subprocess with a timeout.
 
-If Node and an existing Playwright installation are available, it also launches
-real Chromium. It first looks for `../impact-ledger/node_modules/playwright` and
-otherwise prints a clear browser-check skip. It never installs Node dependencies.
-Require explicit browser evidence and retain screenshots/print output with:
+The checkout includes an exact development-only Playwright 1.61.1 lock. With
+Node 24, reproduce the browser CI job and retain screenshots/print output:
 
 ```sh
-python3 scripts/verify_html.py --require-browser --browser-module /absolute/path/to/node_modules/playwright --artifacts reports/html-verification
+npm ci --ignore-scripts --prefix browser
+browser/node_modules/.bin/playwright install chromium
+python3 scripts/verify_html.py --require-browser --browser-module browser/node_modules/playwright --artifacts reports/html-verification
 ```
+
+On Linux, install Chromium system dependencies with
+`browser/node_modules/.bin/playwright install --with-deps chromium`, as CI does.
+The Python verifier never installs Node dependencies itself. Without explicit
+`--browser-module`, it retains the older optional lookup for
+`../impact-ledger/node_modules/playwright`; unavailable tooling prints a clear
+skip. The dedicated CI browser job requires the locked module and uses
+`--require-browser`, so missing tooling fails that job.
 
 The browser verifier checks desktop 1280 px and mobile 390/320 px overflow, search,
 every status filter, live counts, keyboard controls, no-JavaScript expansion, print
