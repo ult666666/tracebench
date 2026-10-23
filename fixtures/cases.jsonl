@@ -1,0 +1,6 @@
+{"id":"en-greeting","input":"Return exactly: Hello, world!","checks":[{"type":"exact","expected":"Hello, world!"}],"description":"Synthetic English exact check"}
+{"id":"zh-greeting","input":"请只回答：你好，世界。","checks":[{"type":"exact","expected":"你好，世界。"}],"description":"合成中文精确检查"}
+{"id":"en-summary","input":"Write one sentence mentioning renewable energy.","checks":[{"type":"contains","expected":"renewable energy"}],"description":"Synthetic literal keyword check"}
+{"id":"zh-location","input":"写一句包含北京的天气描述。","checks":[{"type":"contains","expected":"北京"}],"description":"合成中文子串检查"}
+{"id":"en-structured","input":"Return JSON with status ready and count 2.","checks":[{"type":"json_subset","expected":{"status":"ready","count":2}}],"description":"Extra object fields are accepted"}
+{"id":"zh-structured","input":"返回上海项目JSON，项目依次为教育、社区，已验证为true。","checks":[{"type":"json_subset","expected":{"城市":"上海","项目":["教育","社区"],"已验证":true}}],"description":"Array order and boolean types matter"}

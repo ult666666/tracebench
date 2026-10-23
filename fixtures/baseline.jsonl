@@ -1,0 +1,6 @@
+{"id":"en-greeting","output":"Hello, world!","metrics":{"latency_ms":120,"input_tokens":10,"output_tokens":4}}
+{"id":"zh-greeting","output":"你好，世界。","metrics":{"latency_ms":140,"input_tokens":12,"output_tokens":6}}
+{"id":"en-summary","output":"A community can invest in renewable energy.","metrics":{"latency_ms":200,"input_tokens":40,"output_tokens":14}}
+{"id":"zh-location","output":"北京今天晴朗。","metrics":{"latency_ms":160,"input_tokens":20,"output_tokens":9}}
+{"id":"en-structured","output":{"status":"ready","count":2,"source":"synthetic"},"metrics":{"latency_ms":240,"input_tokens":30,"output_tokens":12}}
+{"id":"zh-structured","output":{"城市":"上海","项目":["教育","社区"],"已验证":true},"metrics":{"latency_ms":180,"input_tokens":35,"output_tokens":15}}
