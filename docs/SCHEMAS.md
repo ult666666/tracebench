@@ -59,6 +59,13 @@ The library validates the same data rules, but file byte/row limits apply only
 to file readers. The complete dataset and reports are held in memory. These are
 validation bounds, not tested throughput or memory-capacity guarantees.
 
+Latency metrics in reports use fixed decimal strings. A valid input such as
+`1e100` therefore becomes a string with 101 characters. Report validation removes
+only coefficient trailing zeros from a temporary Decimal before reapplying the
+original input bounds, using the fixed 512-digit context. This preserves accepted
+boundaries without changing input limits, stored strings, summaries or exact
+JSON/Markdown serialization, and does not use the caller's Decimal context.
+
 ## JSON report version 1
 
 Top-level keys are exactly `schema_version`, `suite_sha256`, `results`,

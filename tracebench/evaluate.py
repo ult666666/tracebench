@@ -138,7 +138,11 @@ def validate_report(report):
         fields(metrics, {"latency_ms", "input_tokens", "output_tokens"}, where="report metrics")
         restored = {k: v for k, v in metrics.items() if v is not None}
         if metrics["latency_ms"] is not None:
-            restored["latency_ms"] = _report_decimal(metrics["latency_ms"], "latency_ms")
+            # Fixed notation can add coefficient zeros (1e100 becomes 101
+            # digits). Remove them exactly before reapplying input bounds.
+            # Report decimals have at most 512 digits, so this fixed context
+            # cannot round or depend on the caller's Decimal settings.
+            restored["latency_ms"] = _report_decimal(metrics["latency_ms"], "latency_ms").normalize(context=_ARITHMETIC)
         validate_output({"id": result["id"], "output": result["output"], "metrics": restored})
         if result["cost"] is not None:
             _report_decimal(result["cost"], "cost")

@@ -10,7 +10,7 @@ outputs.jsonl ─ strict schema┘                                  │
 pricing.json ── Decimal rates ─────────────── metrics and cost ──┤
 prior report ── structural validation ─ suite fingerprint ──────┤
                                                                ▼
-                                                  JSON / escaped Markdown
+                                             JSON / escaped Markdown / HTML
                                                                │
                                                    stdout or atomic file
 ```
@@ -23,6 +23,7 @@ prior report ── structural validation ─ suite fingerprint ─────�
 | `checks.py` | Exact string, literal substring, recursive JSON subset checks |
 | `evaluate.py` | ID joins, case/check results, cost/latency coverage, suite fingerprint, baseline compatibility |
 | `report.py` | Exact-number JSON serialization and escaped Markdown previews |
+| `html_report.py` | Validated standalone HTML, full inert JSON outputs/reasons, hashed CSP, optional search/filter and print CSS |
 | `cli.py` | Argument parsing, exit-code precedence, protected atomic report replacement |
 | `build_backend.py` | Dependency-free wheel, metadata, and source archive construction |
 
@@ -77,7 +78,16 @@ preserving exact decimal numeric values. Markdown converts untrusted punctuation
 symbols, control/format characters, and non-space separators to numeric entities.
 Raw HTML, inline links, code spans, and table separators from inputs therefore
 remain content. Markdown output previews are limited to 300 characters; complete
-recorded outputs remain in JSON. Reports are not a redaction mechanism.
+recorded outputs remain in JSON and HTML. Reports are not a redaction mechanism.
+
+HTML validates report consistency, renders dynamic data only as escaped text,
+and uses only fixed status values in attributes. Outputs and reasons are full
+JSON text so HTML parsing cannot drop leading newlines or normalize control
+characters. The fixed inline script and stylesheet are allowed by exact SHA-256
+CSP hashes, with all network sources, frames, forms and base URLs blocked.
+Search operates on existing DOM text and safely decoded JSON; it never parses
+recorded content as HTML. Native details expose content without JavaScript, while
+print CSS reveals filtered cases and closed blocks. See [HTML reporting](HTML.md).
 
 `--report` checks resolved paths and existing file identities to protect inputs,
 writes a temporary file in the destination directory, flushes it, and replaces

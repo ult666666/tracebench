@@ -1,9 +1,11 @@
 from copy import deepcopy
-from decimal import Decimal, localcontext
+from decimal import Decimal, Inexact, Rounded, localcontext
 import unittest
 
-from tracebench.io import InputError
+from tracebench.io import InputError, strict_json
 from tracebench.evaluate import evaluate, compare_baseline, validate_report
+from tracebench.html_report import render_html
+from tracebench.report import render_json, render_markdown
 
 
 def case(case_id="x", kind="exact", expected="你好"):
@@ -22,6 +24,56 @@ def run_case(spec, actual):
 
 
 class EvaluationTests(unittest.TestCase):
+    def test_normalized_metric_boundaries_survive_report_roundtrip_and_html(self):
+        boundaries = [("1e100", "1" + "0" * 100),
+                      ("9." + "9" * 99 + "e100", "9" * 100 + "0"),
+                      ("1e-100", "0." + "0" * 99 + "1"),
+                      ("9" * 100 + "e-199", "0." + "0" * 99 + "9" * 100),
+                      ("9" * 100, "9" * 100), ("0", "0")]
+        for number, fixed in boundaries:
+            with self.subTest(number=number), localcontext() as context:
+                context.prec, context.Emax, context.Emin = 7, 10, -10
+                context.traps[Inexact] = context.traps[Rounded] = True
+                row = strict_json('{"id":"x","output":' + number + ',"metrics":{"latency_ms":' + number
+                                  + ',"input_tokens":' + "9" * 100 + ',"output_tokens":0}}')
+                report = evaluate({"x": case(kind="json_subset", expected=row["output"])}, {"x": row})
+                self.assertEqual(report["results"][0]["metrics"]["latency_ms"], fixed)
+                before = (render_json(report), render_markdown(report))
+                restored = strict_json(before[0], max_depth=128)
+                try:
+                    self.assertIs(validate_report(restored), restored)
+                    self.assertEqual(compare_baseline(restored, restored)["unchanged"], 1)
+                    self.assertIn(fixed, render_html(restored))
+                except InputError as exc:
+                    self.fail(f"Accepted input boundary rejected after metric normalization: {exc}")
+                self.assertEqual((render_json(restored), render_markdown(restored)), before)
+
+    def test_normalized_metric_repair_preserves_input_and_report_numeric_limits(self):
+        # These representations exceed the input coefficient limit even though
+        # the same values have legal compact representations in reports.
+        for number in ["1" + "0" * 100, "1." + "0" * 100]:
+            with self.subTest(input_representation=number):
+                with self.assertRaises(InputError):
+                    strict_json('{"id":"x","output":"你好","metrics":{"latency_ms":' + number + '}}')
+                with self.assertRaises(InputError):
+                    run_case(case(), output(latency_ms=Decimal(number)))
+        boundaries = [("1e101", "1" + "0" * 101, "1" + "0" * 101),
+                      ("1e-101", "0." + "0" * 100 + "1", "0"),
+                      ("9" * 101 + "e-1", "9" * 100 + ".9", "9" * 100 + ".9")]
+        for number, fixed, mean in boundaries:
+            with self.subTest(number=number):
+                with self.assertRaises(InputError):
+                    strict_json('{"id":"x","output":"你好","metrics":{"latency_ms":' + number + '}}')
+                with self.assertRaises(InputError):
+                    run_case(case(), output(latency_ms=Decimal(number)))
+                report = run_case(case(), output(latency_ms=1))
+                report["results"][0]["metrics"]["latency_ms"] = number
+                # Keep this forged report internally consistent, so rejection
+                # proves the numeric bounds rather than a summary mismatch.
+                report["summary"]["latency_ms"].update(min=fixed, max=fixed, p50=fixed, p95=fixed, mean=mean)
+                with self.assertRaises(InputError):
+                    validate_report(report)
+
     def test_library_rejects_mixed_nonstring_object_keys_with_input_error(self):
         malformed = case()
         malformed[1] = "invalid key"

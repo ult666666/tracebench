@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src &#x27;none&#x27;; script-src &#x27;sha256-cNnpz5Lz6AOHde5E1C+2o5Egw1eVMNrBiM4YK7hkBWo=&#x27;; style-src &#x27;sha256-dVzVw0iza7uFudbCQJobcEqh+GLYiLQBMyeWU8nstwo=&#x27;; script-src-attr &#x27;none&#x27;; style-src-attr &#x27;none&#x27;; connect-src &#x27;none&#x27;; img-src &#x27;none&#x27;; font-src &#x27;none&#x27;; object-src &#x27;none&#x27;; frame-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;"><meta name="viewport" content="width=device-width, initial-scale=1"><title>TraceBench · Synthetic recorded-output demo</title><style>
+:root { color-scheme: light; --paper:#f7f4ed; --ink:#292820; --muted:#656157;
+  --line:#d8d1c4; --green:#226049; --red:#a23d2e; --accent:#9b582c; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--paper); color:var(--ink);
+  font:16px/1.6 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+main { max-width:1160px; margin:0 auto; padding:52px 32px 36px; }
+h1,h2,h3,p { margin:0; }
+h1 { font-size:clamp(2.2rem,6vw,3.8rem); line-height:1.1; letter-spacing:-.055em; font-weight:650; }
+h2 { font-size:1.45rem; letter-spacing:-.025em; }
+h3 { font-size:1.05rem; overflow-wrap:anywhere; white-space:pre-wrap; }
+.eyebrow { color:var(--accent); font-size:.75rem; letter-spacing:.15em; text-transform:uppercase; font-weight:750; }
+.intro { max-width:680px; margin:18px 0 26px; color:var(--muted); }
+.masthead { display:flex; justify-content:space-between; align-items:flex-start; gap:24px; }
+.verdict { border:1px solid currentColor; border-radius:99px; padding:8px 18px; font-weight:750; letter-spacing:.06em; white-space:nowrap; }
+.passed { color:var(--green); }
+.failed { color:var(--red); }
+.fingerprint { padding:16px 0 24px; border-top:1px solid var(--line); color:var(--muted); font-size:.8rem; }
+code { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; overflow-wrap:anywhere; }
+.fingerprint code { display:block; margin-top:4px; color:var(--ink); }
+.metrics { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
+.metric { min-width:0; border:1px solid var(--line); border-radius:14px; background:#fffdf8; padding:24px; }
+.metric .value { font-size:clamp(1.6rem,3vw,2.2rem); font-weight:650; line-height:1.3; margin:9px 0; overflow-wrap:anywhere; }
+.metric .value.cost { font-size:1.5rem; }
+.metric p,.fine { font-size:.86rem; color:var(--muted); overflow-wrap:anywhere; }
+.baseline { margin:20px 0; padding:19px 22px; background:#eee8dd; border-radius:12px; }
+.baseline .counts { display:flex; flex-wrap:wrap; gap:12px 30px; margin:5px 0; }
+.baseline strong { font-variant-numeric:tabular-nums; }
+.caveats { color:var(--muted); font-size:.9rem; max-width:900px; }
+.case-section { margin-top:40px; }
+.section-head { display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+.controls { display:flex; flex-wrap:wrap; gap:16px; align-items:end; padding:18px 0; border-top:1px solid var(--line); }
+.controls[hidden],article[hidden] { display:none; }
+.control { display:flex; flex-direction:column; gap:5px; flex:1 1 250px; }
+.control.filter { flex:0 1 220px; }
+label { font-size:.82rem; font-weight:650; }
+input,select { width:100%; min-height:44px; padding:10px 12px; border:1px solid #a69d8e; border-radius:8px; background:#fffdf8; color:var(--ink); font:inherit; }
+:focus-visible { outline:3px solid var(--accent); outline-offset:3px; }
+article { margin:14px 0; border:1px solid var(--line); border-radius:12px; background:#fffdf8; padding:22px; min-width:0; }
+.case-head { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; }
+.badges { display:flex; flex-wrap:wrap; justify-content:end; gap:7px; flex-shrink:0; }
+.badge { font-size:.72rem; font-weight:750; padding:3px 9px; border:1px solid currentColor; border-radius:6px; }
+.change { color:var(--accent); }
+.case-metrics { margin:9px 0 15px; color:var(--muted); font-size:.8rem; overflow-wrap:anywhere; }
+details { border-top:1px solid var(--line); padding-top:12px; margin-top:12px; }
+summary { cursor:pointer; font-size:.9rem; font-weight:650; }
+pre { white-space:pre-wrap; overflow-wrap:anywhere; word-break:break-word; font: .84rem/1.65 ui-monospace,SFMono-Regular,Consolas,monospace; margin:12px 0 0; tab-size:4; }
+.checks { padding-left:22px; margin:14px 0 0; }
+.checks li + li { margin-top:18px; }
+.checks pre { margin-top:4px; }
+footer { border-top:1px solid var(--line); margin-top:36px; padding-top:18px; color:var(--muted); font-size:.8rem; }
+.demo-label { padding:12px 24px; background:#ead6af; color:#4c371b; text-align:center; font-size:.85rem; font-weight:600; }
+@media(max-width:700px) {
+  main { padding:30px 18px; } .metrics { grid-template-columns:1fr; gap:10px; }
+  .metric { padding:20px; } .masthead { gap:12px; } .verdict { padding:6px 12px; font-size:.8rem; }
+  .case-head { flex-direction:column; gap:10px; } .badges { justify-content:start; flex-shrink:1; }
+  article { padding:18px; } .control.filter { flex:1 1 220px; }
+}
+@media print {
+  body { background:white; color:#111; font-size:10pt; } main { max-width:none; padding:0; }
+  .controls,#visible-count { display:none !important; } article[hidden] { display:block !important; }
+  .metric,article { background:white; } .metric { padding:12px; }
+  h1 { font-size:28pt; } .metric .value { font-size:18pt; } .case-section { margin-top:20px; }
+  details::details-content { display:block; content-visibility:visible; }
+  details > :not(summary) { display:block !important; } pre { white-space:pre-wrap; overflow:visible; }
+  .case-head,summary { break-after:avoid; } .metric,.baseline { break-inside:avoid; }
+}
+</style></head><body><aside class="demo-label">Synthetic recorded-output demo · All outputs, latency observations, token counts and prices are invented fixtures. No provider was called.</aside><main><header><p class="eyebrow">TraceBench / evaluation report</p><div class="masthead"><h1>Recorded outputs.<br>Inspectable results.</h1><span class="verdict failed">FAIL</span></div><p class="intro">Offline deterministic checks, exact known costs, and supplied latency observations. Every result is available for inspection.</p><p class="fingerprint">Suite fingerprint · SHA-256<code>a99313d2d77360598bd69ac001f84a4562ac4dafd79ef199930fbe72a8f94733</code></p></header><section class="metrics" aria-label="Evaluation summary"><div class="metric"><p class="eyebrow">Checks passed</p><div class="value failed">4 / 6</div><p>2 failed · All checks must pass for a case to pass.</p></div><div class="metric"><p class="eyebrow">Supplied latency</p><div class="value">150 <small>ms mean</small></div><p>p50 140 ms · p95 210 ms<br>Min 100 ms · Max 210 ms</p><p>Coverage 6 / 6 · Missing 0.<br>Percentiles use nearest-rank.</p></div><div class="metric"><p class="eyebrow">Known token cost</p><div class="value cost">0.0000327 USD</div><p>Priced cases 6 / 6.<br>Missing token observations 0 / 6.</p></div></section><section class="baseline" aria-label="Baseline comparison"><p class="eyebrow">Baseline comparison</p><div class="counts"><span>Regressions <strong>2</strong></span><span>Improvements <strong>0</strong></span><span>Unchanged <strong>4</strong></span></div><p class="fine">Baseline passed 6 / 6 · Current passed 4 / 6. Comparison is by case ID.</p></section><p class="caveats">Costs use only supplied prices and token observations. Partial coverage is not a total bill. Recorded latency is supplied by the caller; TraceBench does not time a provider or verify provenance. Deterministic checks do not establish semantic quality or factual correctness.</p><section class="case-section" aria-labelledby="case-heading"><div class="section-head"><h2 id="case-heading">Case inspection</h2><p id="visible-count" class="fine" role="status" aria-live="polite" aria-atomic="true">6 / 6 cases visible</p></div><p class="fine">Case inputs and expected values are not retained in this report schema. Recorded outputs are full JSON values; check reasons are JSON strings. Quotes and escapes preserve all text exactly.</p><div class="controls" id="controls" hidden><div class="control"><label for="case-search">Search case ID or recorded output</label><input id="case-search" type="search" autocomplete="off" placeholder="Type to narrow the cases"></div><div class="control filter"><label for="case-filter">Case status</label><select id="case-filter"><option value="all">All cases</option><option value="passed">Passed</option><option value="failed">Failed</option><option value="regressions">Regressions</option><option value="improvements">Improvements</option></select></div></div><noscript><p class="fine">JavaScript is disabled. All cases are visible; use the expandable blocks to inspect full text.</p></noscript><article data-status="failed" data-change="regressions"><div class="case-head"><h3 class="case-id">en-greeting</h3><div class="badges"><span class="badge failed">FAIL</span><span class="badge change">Regression</span></div></div><p class="case-metrics">Latency: 100 ms · Tokens: 10 in / 4 out · Known cost: 0.0000022 USD</p><details><summary>Recorded output · full JSON</summary><pre class="output">&quot;hello, world!&quot;</pre></details><details><summary>Individual checks · 0 / 1 passed</summary><ol class="checks"><li><strong>exact · FAIL</strong><pre class="reason">&quot;exact string differs (case and whitespace are significant)&quot;</pre></li></ol></details></article><article data-status="passed" data-change="unchanged"><div class="case-head"><h3 class="case-id">zh-greeting</h3><div class="badges"><span class="badge passed">PASS</span></div></div><p class="case-metrics">Latency: 120 ms · Tokens: 12 in / 6 out · Known cost: 0.000003 USD</p><details><summary>Recorded output · full JSON</summary><pre class="output">&quot;你好，世界。&quot;</pre></details><details><summary>Individual checks · 1 / 1 passed</summary><ol class="checks"><li><strong>exact · PASS</strong><pre class="reason">&quot;exact match&quot;</pre></li></ol></details></article><article data-status="passed" data-change="unchanged"><div class="case-head"><h3 class="case-id">en-summary</h3><div class="badges"><span class="badge passed">PASS</span></div></div><p class="case-metrics">Latency: 180 ms · Tokens: 40 in / 14 out · Known cost: 0.0000082 USD</p><details><summary>Recorded output · full JSON</summary><pre class="output">&quot;A community can invest in renewable energy.&quot;</pre></details><details><summary>Individual checks · 1 / 1 passed</summary><ol class="checks"><li><strong>contains · PASS</strong><pre class="reason">&quot;substring found&quot;</pre></li></ol></details></article><article data-status="failed" data-change="regressions"><div class="case-head"><h3 class="case-id">zh-location</h3><div class="badges"><span class="badge failed">FAIL</span><span class="badge change">Regression</span></div></div><p class="case-metrics">Latency: 140 ms · Tokens: 20 in / 9 out · Known cost: 0.0000047 USD</p><details><summary>Recorded output · full JSON</summary><pre class="output">&quot;上海今天晴朗。&quot;</pre></details><details><summary>Individual checks · 0 / 1 passed</summary><ol class="checks"><li><strong>contains · FAIL</strong><pre class="reason">&quot;required literal substring not found in string output&quot;</pre></li></ol></details></article><article data-status="passed" data-change="unchanged"><div class="case-head"><h3 class="case-id">en-structured</h3><div class="badges"><span class="badge passed">PASS</span></div></div><p class="case-metrics">Latency: 210 ms · Tokens: 30 in / 12 out · Known cost: 0.0000066 USD</p><details><summary>Recorded output · full JSON</summary><pre class="output">{
+  &quot;status&quot;: &quot;ready&quot;,
+  &quot;count&quot;: 2
+}</pre></details><details><summary>Individual checks · 1 / 1 passed</summary><ol class="checks"><li><strong>json_subset · PASS</strong><pre class="reason">&quot;JSON subset matches&quot;</pre></li></ol></details></article><article data-status="passed" data-change="unchanged"><div class="case-head"><h3 class="case-id">zh-structured</h3><div class="badges"><span class="badge passed">PASS</span></div></div><p class="case-metrics">Latency: 150 ms · Tokens: 35 in / 15 out · Known cost: 0.000008 USD</p><details><summary>Recorded output · full JSON</summary><pre class="output">{
+  &quot;城市&quot;: &quot;上海&quot;,
+  &quot;项目&quot;: [
+    &quot;教育&quot;,
+    &quot;社区&quot;
+  ],
+  &quot;已验证&quot;: true
+}</pre></details><details><summary>Individual checks · 1 / 1 passed</summary><ol class="checks"><li><strong>json_subset · PASS</strong><pre class="reason">&quot;JSON subset matches&quot;</pre></li></ol></details></article></section><footer>TraceBench · Offline evaluation · Report schema 1. Recorded content is displayed as inert text. Print this page to include every case and full output.</footer></main><script>
+(() => {
+  'use strict';
+  const controls = document.getElementById('controls');
+  const search = document.getElementById('case-search');
+  const filter = document.getElementById('case-filter');
+  const count = document.getElementById('visible-count');
+  const cases = Array.from(document.querySelectorAll('article'));
+  // Cache only text already in the DOM; recorded content is never parsed as HTML.
+  const searchable = cases.map(card => {
+    const serialized = card.querySelector('.output').textContent;
+    // Decode JSON string tokens only. Parsing numbers through JavaScript would
+    // round exact decimals and could create matches absent from recorded data.
+    const readable = (serialized.match(/"(?:\\.|[^"\\])*"/g) || [])
+      .map(value => JSON.parse(value)).join('\n');
+    return (card.querySelector('.case-id').textContent + '\n' + serialized + '\n' + readable).toLocaleLowerCase();
+  });
+  function update() {
+    const query = search.value.toLocaleLowerCase();
+    let visible = 0;
+    cases.forEach((card, index) => {
+      const match = filter.value === 'all' || card.dataset.status === filter.value || card.dataset.change === filter.value;
+      card.hidden = !(match && searchable[index].includes(query));
+      if (!card.hidden) visible += 1;
+    });
+    count.textContent = visible + ' / ' + cases.length + ' cases visible';
+  }
+  search.addEventListener('input', update);
+  filter.addEventListener('change', update);
+  controls.hidden = false;
+  update();
+})();
+</script></body></html>

@@ -32,8 +32,12 @@ the English greeting and the Mandarin location check. Run `echo $?` immediately
 after it to see the regression exit. On Windows, use `.venv\Scripts\python` and
 `.venv\Scripts\tracebench` and create `reports` with your shell's equivalent.
 
+Open the [synthetic HTML report preview](https://ult666666.github.io/tracebench/) to inspect a recorded-output example with search, case filters and full check results. All displayed outputs, prices and timing observations are invented fixtures. No provider is called.
+
 Read the tracked [sample regression report](docs/sample-regression.md) without
-installing anything. The clean candidate passes **6/6**, with supplied mean
+installing anything, or open the standalone [HTML sample](docs/sample-report.html)
+in a browser. The HTML sample is clearly labelled as synthetic recorded-output
+demonstration data. The clean candidate passes **6/6**, with supplied mean
 latency **150 ms**, nearest-rank p95 **210 ms**, and synthetic known token cost
 **0.0000327 USD** across all six cases. Output-file order differs deliberately.
 
@@ -81,7 +85,7 @@ tokens. TraceBench does not retrieve prices or infer token counts.
 ```text
 tracebench evaluate --cases PATH --outputs PATH
     [--pricing PATH] [--baseline PATH]
-    [--format json|markdown] [--report PATH]
+    [--format json|markdown|html] [--report PATH]
 tracebench --version
 ```
 
@@ -90,7 +94,30 @@ existing directory and refuses to overwrite any input. Errors go to stderr;
 invalid input produces no report. JSON preserves exact decimal numbers and
 escapes HTML-sensitive characters. Markdown escapes untrusted content, including
 HTML, table separators, links, control characters, and formatting. Preview text
-is truncated; JSON retains full recorded outputs.
+is truncated; JSON and HTML retain full recorded outputs.
+
+For a self-contained report that can be saved, reviewed offline, and printed:
+
+```sh
+.venv/bin/tracebench evaluate --cases fixtures/cases.jsonl --outputs fixtures/regression.jsonl --pricing fixtures/pricing.json --baseline reports/baseline.json --format html --report reports/regression.html
+```
+
+This example exits **3** for the two known regressions. Omit `--report` to write
+HTML to stdout. The report includes exact cost and coverage, nearest-rank latency
+metrics, comparison counts, and expandable case outputs and check reasons. Search
+by case ID or output and filter by status with keyboard-accessible controls. All
+cases remain available without JavaScript; printing expands every case, including
+cases hidden by an active filter. Outputs and reasons use full JSON text to retain
+quotes, control characters, Unicode and exact decimal numbers without truncation.
+Schema v1 reports do not retain case inputs or expected values, so the HTML view
+does not reconstruct them.
+
+HTML has no external assets or runtime dependencies. All recorded content is inert
+escaped text; a restrictive Content Security Policy allows only the exact embedded
+script and stylesheet hashes and blocks network access, forms and frames. The
+renderer uses the same validation rules and leaves JSON/Markdown contracts and
+all exit codes unchanged. See [HTML reporting](docs/HTML.md) for reproducible
+sample generation and optional real-browser verification.
 
 | Exit | Meaning and precedence |
 | --- | --- |
@@ -109,6 +136,7 @@ failures remain exit 1; improvements do not cancel a regression.
 - [Architecture](docs/ARCHITECTURE.md): data flow, validation, baseline compatibility, packaging.
 - [Methodology and limitations](docs/METHODOLOGY.md): exact formulas, coverage, and statistical limits.
 - [Library API](docs/API.md): a complete offline example.
+- [HTML reporting](docs/HTML.md): offline inspection, security, printing, and sample reproduction.
 - [中文指南](docs/README.zh-CN.md): 快速运行与结果解释。
 - [Verification record](docs/VERIFICATION.md): actual tests and installed CLI checks.
 

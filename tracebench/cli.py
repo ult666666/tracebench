@@ -8,6 +8,7 @@ import tempfile
 
 from . import __version__
 from .evaluate import compare_baseline, evaluate
+from .html_report import render_html
 from .io import InputError, load_cases, load_json, load_outputs, load_pricing
 from .report import render_json, render_markdown
 
@@ -43,7 +44,7 @@ def main(argv=None):
     command.add_argument("--outputs", required=True, type=Path, help="recorded output JSONL joined by ID")
     command.add_argument("--pricing", type=Path, help="explicit decimal per-million-token prices in JSON")
     command.add_argument("--baseline", type=Path, help="prior JSON report for exactly the same case suite")
-    command.add_argument("--format", choices=("json", "markdown"), default="json", help="report format (default: json)")
+    command.add_argument("--format", choices=("json", "markdown", "html"), default="json", help="report format (default: json)")
     command.add_argument("--report", type=Path, help="atomically replace a report file; defaults to stdout")
     args = parser.parse_args(argv)
     try:
@@ -51,7 +52,7 @@ def main(argv=None):
                           pricing=load_pricing(args.pricing) if args.pricing else None)
         if args.baseline:
             report["comparison"] = compare_baseline(report, load_json(args.baseline))
-        text = render_json(report) if args.format == "json" else render_markdown(report)
+        text = {"json": render_json, "markdown": render_markdown, "html": render_html}[args.format](report)
         if args.report:
             _write_report(args.report, text, [args.cases, args.outputs, args.pricing, args.baseline])
         else:

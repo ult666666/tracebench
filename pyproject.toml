@@ -5,7 +5,7 @@ backend-path = ["."]
 
 [project]
 name = "tracebench"
-version = "0.1.0"
+version = "0.2.0"
 description = "Deterministic offline evaluation of recorded AI outputs"
 readme = "README.md"
 requires-python = ">=3.11"
