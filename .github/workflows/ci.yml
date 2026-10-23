@@ -10,9 +10,9 @@ permissions:
 jobs:
   normal-budget-gate:
     name: Upload all budget reports then fail the normal combined gate
-    uses: ult666666/tracebench/.github/workflows/recorded-evaluation.yml@22187e91ada6bede9869e95b9314723c54687ba6
+    uses: ult666666/tracebench/.github/workflows/recorded-evaluation.yml@8c168e5c3b4f4ee68e298086291bdb7ac9b2992a
     with:
-      tracebench-ref: 22187e91ada6bede9869e95b9314723c54687ba6
+      tracebench-ref: 8c168e5c3b4f4ee68e298086291bdb7ac9b2992a
       cases: fixtures/cases.jsonl
       outputs: fixtures/clean.jsonl
       baseline: fixtures/baseline-report.json
