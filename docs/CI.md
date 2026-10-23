@@ -10,12 +10,14 @@ provider-free. Supplied prices, token counts and latencies are invented.
 
 ## Call from another repository
 
-First choose and review an immutable TraceBench 0.3.0-or-newer **commit**, then
-replace **both** `REVIEWED_TRACEBENCH_COMMIT_SHA` placeholders below with that same
-lowercase 40-hex SHA. The literal placeholder is deliberately invalid; branch
-names and release tags are rejected by the source-revision input. GitHub requires
-a literal reusable-workflow reference, so expressions cannot replace its `@SHA`.
-Do not reference an older commit that lacks the workflow and runner.
+The example pins the 0.3.0 implementation commit
+`ce9b77c75887f12fa668db91eb7a8682a8303285`, which contains this workflow, its
+`scripts/ci_evaluate.py` runner, and the installed package sources. Review and
+trust that code before adopting it. To upgrade, replace **both** occurrences of
+the SHA with the same reviewed immutable commit that contains all these files.
+Branch names and release tags are rejected by the source-revision input. GitHub
+requires a literal reusable-workflow reference, so expressions cannot replace its
+`@SHA`. The commit must be available in the upstream repository when the job runs.
 
 ```yaml
 name: Recorded evaluation
@@ -26,9 +28,9 @@ permissions:
   contents: read
 jobs:
   evaluate:
-    uses: ult666666/tracebench/.github/workflows/recorded-evaluation.yml@REVIEWED_TRACEBENCH_COMMIT_SHA
+    uses: ult666666/tracebench/.github/workflows/recorded-evaluation.yml@ce9b77c75887f12fa668db91eb7a8682a8303285
     with:
-      tracebench-ref: REVIEWED_TRACEBENCH_COMMIT_SHA
+      tracebench-ref: ce9b77c75887f12fa668db91eb7a8682a8303285
       cases: evaluation/cases.jsonl
       outputs: evaluation/candidate.jsonl
       baseline: evaluation/baseline-report.json

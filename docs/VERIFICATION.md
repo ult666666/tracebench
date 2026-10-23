@@ -297,3 +297,9 @@ Hosted clean/regression job execution, actual artifact downloads/summaries, a
 normal failing regression gate, independent review, merge and publication remain
 separate parent-owned verification. Python 3.11 is configured in CI but was not
 run locally. Prior browser/platform/accessibility/high-volume/audit limits remain.
+
+The external caller example is pinned to feature implementation ancestor
+`ce9b77c75887f12fa668db91eb7a8682a8303285` for both workflow and TraceBench
+source. That commit contains every referenced runner/script and declares package
+0.3.0; it does not point at the older 0.2.0 release. The documentation pin was
+added afterward so its literal SHA identifies an actual existing commit.
