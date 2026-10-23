@@ -3,7 +3,7 @@ from decimal import Decimal, localcontext
 import unittest
 
 from tracebench.io import InputError
-from tracebench.evaluate import evaluate, compare_baseline
+from tracebench.evaluate import evaluate, compare_baseline, validate_report
 
 
 def case(case_id="x", kind="exact", expected="你好"):
@@ -22,6 +22,21 @@ def run_case(spec, actual):
 
 
 class EvaluationTests(unittest.TestCase):
+    def test_library_rejects_mixed_nonstring_object_keys_with_input_error(self):
+        malformed = case()
+        malformed[1] = "invalid key"
+        malformed[None] = "another invalid key"
+        with self.assertRaises(InputError):
+            evaluate({"x": malformed}, {"x": output()})
+
+    def test_report_comparison_ids_must_agree_with_current_statuses(self):
+        cases = {"a": case("a"), "b": case("b")}
+        report = evaluate(cases, {"a": output("a"), "b": output("b", "wrong")})
+        report["comparison"] = {"baseline_passed": 1, "current_passed": 1,
+                                "regressions": ["a"], "improvements": ["b"], "unchanged": 0}
+        with self.assertRaises(InputError):
+            validate_report(report)
+
     def test_exact_is_case_whitespace_and_unicode_sensitive(self):
         for expected, actual, passed in [("你好", "你好", True), ("Hello", "hello", False),
                                          ("你好", "你好 ", False), ("é", "e\u0301", False), ("1", 1, False)]:

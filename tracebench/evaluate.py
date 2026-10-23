@@ -172,6 +172,9 @@ def validate_report(report):
             if not isinstance(ids, list) or any(not isinstance(i, str) or i not in seen for i in ids) or len(ids) != len(set(ids)):
                 raise InputError("invalid comparison IDs")
         regressions, improvements = set(comparison["regressions"]), set(comparison["improvements"])
+        statuses = {result["id"]: result["passed"] for result in report["results"]}
+        if any(statuses[key] for key in regressions) or any(not statuses[key] for key in improvements):
+            raise InputError("comparison IDs disagree with current case statuses")
         if regressions & improvements or comparison["unchanged"] != len(seen) - len(regressions) - len(improvements):
             raise InputError("inconsistent comparison IDs")
         if comparison["current_passed"] != summary["passed"] or comparison["baseline_passed"] - len(regressions) + len(improvements) != summary["passed"]:

@@ -11,12 +11,12 @@ python3 -m unittest discover
 .venv/bin/python -m unittest discover -v
 ```
 
-Both commands completed successfully: **47 tests, zero failures/errors**.
+Both commands completed successfully after review fixes: **49 tests, zero failures/errors**.
 
 | Area | Tests | Behavior exercised |
 | --- | --- | --- |
 | Strict input boundaries | 16 | Unicode, duplicate IDs/keys, unknown/missing fields, invalid UTF-8, oversized rows, bad metrics, NaN/Infinity, pricing |
-| Evaluation and baselines | 17 | Literal multilingual checks, Boolean/number distinction, arrays, exact ID joins, hand-computed Decimal cost and latency, missing coverage, invalid baselines, deep-output compatibility |
+| Evaluation and baselines | 19 | Literal multilingual checks, Boolean/number distinction, arrays, exact ID joins, hand-computed Decimal cost and latency, missing coverage, invalid baselines, deep-output compatibility, contradictory comparison metadata and malformed library keys |
 | Serialization and decimal context | 4 | Hostile HTML/link/table/code content, exact JSON decimals, deterministic reports, fixed rounding |
 | Real CLI subprocesses | 8 | Exit 0/1/2/3, saved Markdown/JSON, malformed input, missing baseline IDs, input overwrite protection, failed writes, usage/version |
 | Packaging | 2 | Wheel/archive contents and actual module execution from the wheel outside checkout |
@@ -26,6 +26,13 @@ because implementations were absent. A later deep-output baseline regression
 test exposed an overly strict report-wrapper nesting limit; it failed before
 the fix and passed afterward. No external test dependencies or providers were
 used. These tests do not constitute exhaustive fuzzing or a security audit.
+
+An independent code review found two additional validation gaps: historical
+comparison IDs could contradict current case statuses, and mixed non-string
+library keys could raise an unintended exception. Both were reproduced with
+failing regression tests, repaired, and followed by the full 49-test suite on
+Python 3.13.7 and 3.15.0. The installed CLI verifier was rerun after reinstalling
+the final source and source archive.
 
 ## Actual offline installation
 

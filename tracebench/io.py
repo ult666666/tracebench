@@ -17,6 +17,8 @@ class InputError(ValueError):
 def fields(value, required, optional=(), where="record"):
     if not isinstance(value, dict):
         raise InputError(f"{where}: expected an object")
+    if any(not isinstance(key, str) for key in value):
+        raise InputError(f"{where}: object keys must be strings")
     missing = set(required) - value.keys()
     unknown = value.keys() - set(required) - set(optional)
     if missing:
