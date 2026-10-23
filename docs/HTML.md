@@ -108,6 +108,10 @@ call providers, store user records or publish arbitrary local reports. Repositor
 Pages must use GitHub Actions. The hosted bytes are checked separately after
 deployment; a configured workflow alone is not evidence that publication passed.
 
+Concurrency is scoped to the triggering Git ref. A manually dispatched feature
+branch skips both jobs and cannot cancel a main-branch publication by sharing
+its concurrency group. A newer main run can still replace an older main run.
+
 Both the Pages build and deploy jobs require `github.ref == 'refs/heads/main'`,
 including manual workflow dispatches. A manual run selected from another branch
 or tag skips the publish path. Deployment still consumes the same staged artifact
