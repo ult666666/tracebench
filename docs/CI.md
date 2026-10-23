@@ -1,6 +1,6 @@
 # Recorded-output CI gate
 
-TraceBench 0.3.0 supplies an actual reusable GitHub Actions workflow at
+TraceBench 0.4.0 supplies an actual reusable GitHub Actions workflow at
 `.github/workflows/recorded-evaluation.yml`. The repository's `ci.yml` calls it
 for both the clean synthetic fixture and a separate expected-regression
 verification. The latter explicitly asserts exit **3**; an unexpected clean
@@ -10,8 +10,8 @@ provider-free. Supplied prices, token counts and latencies are invented.
 
 ## Call from another repository
 
-The example pins the repaired 0.3.0 implementation commit
-`9cfe62a4afd613fc9a15e24018cdf77bc8f65977`, which contains this workflow, its
+The example pins the complete 0.4.0 implementation ancestor
+`22187e91ada6bede9869e95b9314723c54687ba6`, which contains this workflow, its
 `scripts/ci_evaluate.py` runner, and the installed package sources. Review and
 trust that code before adopting it. To upgrade, replace **both** occurrences of
 the SHA with the same reviewed immutable commit that contains all these files.
@@ -28,18 +28,20 @@ permissions:
   contents: read
 jobs:
   evaluate:
-    uses: ult666666/tracebench/.github/workflows/recorded-evaluation.yml@9cfe62a4afd613fc9a15e24018cdf77bc8f65977
+    uses: ult666666/tracebench/.github/workflows/recorded-evaluation.yml@22187e91ada6bede9869e95b9314723c54687ba6
     with:
-      tracebench-ref: 9cfe62a4afd613fc9a15e24018cdf77bc8f65977
+      tracebench-ref: 22187e91ada6bede9869e95b9314723c54687ba6
       cases: evaluation/cases.jsonl
       outputs: evaluation/candidate.jsonl
       baseline: evaluation/baseline-report.json
       pricing: evaluation/pricing.json
+      rules: evaluation/budget.json
       artifact-name: recorded-evaluation
 ```
 
-Omit `pricing` if costs are unavailable and `baseline` if only check failures
-should gate the run. The default `expectation: pass` applies the real gate.
+Omit `rules` to retain the original evaluation-only gate. Omit `pricing` if costs
+are unavailable and `baseline` if only check failures should gate the evaluation.
+A selected cost rule with unavailable pricing will reject the policy. The default `expectation: pass` applies the real gate.
 `expectation: regression` is reserved for deliberate verification fixtures: it
 succeeds only when evaluation exits 3, and must not replace a real release gate.
 The supported expectation strings are `pass`, `regression`, and the optional
@@ -185,8 +187,10 @@ strict schema 1 policy JSON path. It uses the same path restrictions above and a
 stricter **64 KiB** file cap. Thresholds are explicit decimal strings; at least
 one is required. Use `fixtures/budget-pass.json` or `fixtures/budget-fail.json`
 with the checked-in clean fixture and explicit pricing to reproduce policy 0/1.
-The preceding default-only 0.3.0 pin must be upgraded to a reviewed 0.4.0 source
-ancestor before adding `rules`; workflow and source SHAs must always match.
+The example above pins an actual complete 0.4.0 source ancestor containing this
+workflow, runner, policy module and fixtures. Both literal SHAs match. Its docs
+pin was added in a later commit; retain that implementation ancestor through
+merge-commit integration, and repin after any future runtime/workflow repair.
 
 With rules, the exact artifact set is `report.json`, `report.md`, `report.html`,
 `provenance.json`, `gate.json`, **`policy.json`, `policy.md`, `rules.json`**.

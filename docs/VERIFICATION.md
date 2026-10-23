@@ -439,3 +439,12 @@ own-CI calls, normal failing-budget probe, retained artifact inspection, Pages,
 independent review, merge and release are separate parent-owned evidence. These
 observations are caller-supplied data, not measured provider benchmarks, safety
 verdicts or spending authorization.
+
+The 0.4.0 consumer example now pins actual fixed implementation ancestor
+`22187e91ada6bede9869e95b9314723c54687ba6` for both reusable workflow and source.
+That commit was created only after the complete implementation, selection-guard
+repair and verification above; it contains all referenced package/runner/workflow/
+fixture files and declares 0.4.0. The literal pin is added in this later docs
+commit so it names a real ancestor. Preserve it through merge-commit integration;
+if independent review changes runtime or workflow code, commit the complete fix
+first and update both pins to that newer actual implementation ancestor.
