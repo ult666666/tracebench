@@ -337,3 +337,10 @@ gates 0/1/3 and explicit expected-3 verification, and passes the original demo,
 exact HTML sample and required real Chromium checks. `actionlint 1.7.7` and
 `git diff --check` pass; Pages source and sample bytes remain unchanged. Hosted
 PR execution and publication are separate parent-owned work.
+
+After the size-bound repair, the external example's workflow and source pins both
+point to fixed implementation ancestor `9cfe62a4afd613fc9a15e24018cdf77bc8f65977`.
+That actual commit contains the repaired runner, workflow and all referenced
+package/browser/fixture files at version 0.3.0. It supersedes the original
+`ce9b77c…` example pin above; preserving this ancestor during merge retains the
+reviewed source provenance.
