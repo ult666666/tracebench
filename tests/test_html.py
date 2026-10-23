@@ -160,6 +160,30 @@ class HtmlCliTests(unittest.TestCase):
         return ["evaluate", "--cases", ROOT / "fixtures/cases.jsonl", "--outputs", ROOT / "fixtures" / name,
                 "--pricing", ROOT / "fixtures/pricing.json", "--format", "html"]
 
+    def test_numeric_boundaries_have_identical_success_semantics_in_all_formats(self):
+        boundaries = [("1e100", "1" + "0" * 100),
+                      ("9." + "9" * 99 + "e100", "9" * 100 + "0"),
+                      ("1e-100", "0." + "0" * 99 + "1"),
+                      ("9" * 100 + "e-199", "0." + "0" * 99 + "9" * 100)]
+        with tempfile.TemporaryDirectory() as directory:
+            cases, outputs, baseline = (Path(directory) / name for name in ["cases.jsonl", "outputs.jsonl", "baseline.json"])
+            cases.write_text('{"id":"x","input":"synthetic","checks":[{"type":"exact","expected":"ok"}]}\n', encoding="utf-8")
+            for number, fixed in boundaries:
+                outputs.write_text('{"id":"x","output":"ok","metrics":{"latency_ms":' + number + '}}\n', encoding="utf-8")
+                common = ["evaluate", "--cases", cases, "--outputs", outputs]
+                created = self.cli(*common, "--report", baseline)
+                self.assertEqual(created.returncode, 0, created.stderr)
+                for format_name in ["json", "markdown", "html"]:
+                    for compared in [False, True]:
+                        with self.subTest(number=number, format=format_name, compared=compared):
+                            args = common + ["--format", format_name]
+                            if compared:
+                                args += ["--baseline", baseline]
+                            result = self.cli(*args)
+                            self.assertEqual(result.returncode, 0, result.stderr)
+                            self.assertEqual(result.stderr, "")
+                            self.assertIn(fixed, result.stdout)
+
     def test_html_stdout_exit_zero_and_failure_exit_one(self):
         for name, code in [("clean.jsonl", 0), ("regression.jsonl", 1)]:
             with self.subTest(name=name):

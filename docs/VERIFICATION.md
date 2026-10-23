@@ -185,3 +185,58 @@ screen-reader audit, high-volume browser benchmark or independent security audit
 was performed. Modern Chromium print behavior was verified; older print engines
 may need manual expansion. Case inputs and expected values remain unavailable in
 schema v1, and observations/prices remain caller-supplied with no provenance claim.
+
+## 0.2.0 review repair: numeric boundaries, sample bytes and publish ref
+
+Independent review of the HTML feature and Pages workflow found that a valid
+latency input `1e100` became a 101-digit fixed string and was then rejected when
+report validation reapplied the input coefficient limit. It also found that the
+sample verifier's `read_text()` normalized CRLF, so its earlier check did not
+establish byte equality, and that manual Pages dispatch lacked an explicit main
+ref guard. These three findings were repaired together on **2026-10-23**.
+
+Before the repair, new regressions produced **11 failing subtests**: two accepted
+numeric boundary reports, eight real CLI format/baseline combinations, and the
+CRLF sample-byte check. The input-limit rejection checks already passed.
+Report validation now normalizes only a temporary restored latency Decimal using
+the explicit fixed 512-digit context, removing coefficient zeros introduced by
+fixed notation before applying the unchanged input validator. Report data,
+HTML consistency validation, input limits and exact JSON/Markdown serialization
+remain unchanged. Tests use precision 7, exponent bounds ±10 and traps for rounded
+or inexact operations to guard against ambient Decimal context dependence.
+
+The sample verifier now compares raw bytes with explicit UTF-8 generation bytes,
+and both sample writes use `write_bytes()`. The regression executes the real
+verifier and CLI with a temporary fixture root: LF passes and changed CRLF bytes
+fail. Running `--write-sample` retained the committed sample exactly, with SHA-256
+`0f4bad9a7d8e4ae6bcc1a141f058f4562359a44c07527a05eef5643a4e757ddc`.
+
+Both Pages build and deploy jobs now require
+`github.ref == 'refs/heads/main'`, including manual dispatch. The deploy job still
+depends on the tested build and consumes its staged synthetic-only artifact.
+This is a workflow source change; no hosted dispatch/deployment or environment
+protection was inferred from the local checks.
+
+Final local repair verification passed the complete **65-test** suite on both
+**Python 3.13.7** and **Python 3.15.0**, with zero failures/errors. New coverage
+includes accepted adjusted-exponent ±100 boundaries with one and 100 coefficient
+digits, zero, a 100-digit integer/token count, JSON report round-trips, compatible
+baseline comparison and HTML rendering. Real CLI checks cover all three formats
+with and without a baseline. Beyond-boundary exponents, 101 significant digits,
+and overlong input representations remain rejected. Validation and rendering do
+not mutate either JSON or Markdown output.
+
+Fresh Python 3.13 environments under `reports/venv-html-review-source`,
+`reports/venv-html-review-sdist` and `reports/venv-html-review-wheel` each installed
+**0.2.0** with `pip install --no-cache-dir --no-index`, from the source checkout,
+generated source archive and wheel respectively. Each installed console script
+ran outside the checkout and passed the original demo, HTML verifier and real
+**Chromium 149.0.7827.55** checks. Each also passed **24 accepted-boundary
+format/baseline combinations** and **9 rejected-boundary format checks** through
+the installed CLI. The original fixture remains 6/6, 150 ms mean and exactly
+0.0000327 USD; all exit-code, atomic-write, escaping, responsive, keyboard,
+no-JavaScript, print and zero-HTTP(S)-request checks passed again.
+
+The prior platform, accessibility, high-volume and independent-audit limitations
+still apply. The repair was committed locally for scoped independent re-review;
+publishing and hosted verification remain separate work.

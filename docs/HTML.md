@@ -72,6 +72,8 @@ The script rebuilds the report from `fixtures/cases.jsonl`, `baseline.jsonl`,
 `regression.jsonl` and `pricing.json`, adds a fixed synthetic-demo banner/title,
 and asserts exact sample bytes. Every run without `--write-sample` verifies those
 same committed bytes, so it is suitable for a prepublication CI check. The script
+reads and writes explicit UTF-8 bytes; changing LF line endings to CRLF is a
+verification failure even if the text appears identical. The script
 also compares renderer output to real CLI stdout and atomic files, checks all exit
 codes, and checks input protection. It bounds every subprocess with a timeout.
 
@@ -105,3 +107,8 @@ check. The workflow deploys only that staging directory. It does not accept file
 call providers, store user records or publish arbitrary local reports. Repository
 Pages must use GitHub Actions. The hosted bytes are checked separately after
 deployment; a configured workflow alone is not evidence that publication passed.
+
+Both the Pages build and deploy jobs require `github.ref == 'refs/heads/main'`,
+including manual workflow dispatches. A manual run selected from another branch
+or tag skips the publish path. Deployment still consumes the same staged artifact
+that passed the main build's tests, installation checks and exact sample-byte check.

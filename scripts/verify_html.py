@@ -73,9 +73,9 @@ def verify(directory, executable):
     assert copied_cases.read_bytes() == (ROOT / "fixtures/cases.jsonl").read_bytes()
     missing = subprocess.run(common + ["--outputs", str(directory / "missing.jsonl")], cwd=cwd, capture_output=True, text=True, timeout=15)
     assert missing.returncode == 2 and not missing.stdout and "Traceback" not in missing.stderr
-    sample = sample_report()
-    assert (ROOT / "docs/sample-report.html").read_text(encoding="utf-8") == sample, "Regenerate sample with --write-sample"
-    (directory / "sample.html").write_text(sample, encoding="utf-8")
+    sample = sample_report().encode("utf-8")
+    assert (ROOT / "docs/sample-report.html").read_bytes() == sample, "Regenerate sample with --write-sample"
+    (directory / "sample.html").write_bytes(sample)
     browser_fixture(directory)
     print("HTML generation and real CLI verified: stdout=files=renderer, exits=0/1/2/3, atomic replacement, input protection, reproducible synthetic sample.")
 
@@ -89,7 +89,7 @@ def main():
     parser.add_argument("--artifacts", type=Path, help="keep generated HTML and desktop/mobile screenshots in this directory")
     args = parser.parse_args()
     if args.write_sample:
-        (ROOT / "docs/sample-report.html").write_text(sample_report(), encoding="utf-8")
+        (ROOT / "docs/sample-report.html").write_bytes(sample_report().encode("utf-8"))
     browser_module = args.browser_module or ROOT.parent / "impact-ledger/node_modules/playwright"
     node = shutil.which("node")
     available = node is not None and (browser_module / "package.json").is_file()
