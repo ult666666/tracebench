@@ -27,3 +27,5 @@ jobs:
           .venv/bin/tracebench --version
       - name: Verify installed CLI outside the source directory
         run: .venv/bin/python scripts/verify_demo.py --cli .venv/bin/tracebench
+      - name: Verify HTML CLI and exact synthetic sample bytes
+        run: .venv/bin/python scripts/verify_html.py --cli .venv/bin/tracebench

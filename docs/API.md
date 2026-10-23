@@ -7,6 +7,7 @@ connection is involved. Run this example from the source checkout after install:
 from pathlib import Path
 
 from tracebench.evaluate import compare_baseline, evaluate
+from tracebench.html_report import render_html
 from tracebench.io import InputError, load_cases, load_json, load_outputs, load_pricing
 from tracebench.report import render_json, render_markdown
 
@@ -23,6 +24,7 @@ assert candidate["comparison"]["regressions"] == []
 Path("reports").mkdir(exist_ok=True)
 Path("reports/api.json").write_text(render_json(candidate), encoding="utf-8")
 Path("reports/api.md").write_text(render_markdown(candidate), encoding="utf-8")
+Path("reports/api.html").write_text(render_html(candidate), encoding="utf-8")
 ```
 
 | Function | Contract |
@@ -35,11 +37,13 @@ Path("reports/api.md").write_text(render_markdown(candidate), encoding="utf-8")
 | `compare_baseline(current, baseline)` | Validate both reports and suite compatibility, return comparison dictionary without mutating either report |
 | `render_json(report)` | Exact-number JSON with HTML-sensitive strings escaped and trailing newline |
 | `render_markdown(report)` | Escaped readable report with 300-character output previews |
+| `render_html(report: dict) -> str` | Validated standalone HTML with full escaped JSON outputs/reasons, fixed hashed CSP, optional search/filter script and print CSS |
 
 `InputError`, a `ValueError` subclass, indicates schema, numeric, compatibility,
 or file-read errors. The CLI maps these and report I/O errors to exit 2.
-Library users handle exceptions directly. The renderer expects a valid report;
-it is not a replacement for input or baseline validation.
+Library users handle exceptions directly. JSON/Markdown renderers expect valid
+reports; the HTML renderer also calls `validate_report` before presenting metrics.
+Rendering is not a replacement for validating case and output inputs.
 
 You may construct mappings directly rather than loading files, using the same
 record schema. Supply prices as decimal strings or the normalized `Decimal`
@@ -51,3 +55,11 @@ outputs. Use `render_json`, rather than ordinary `json.dumps`, to preserve exact
 numeric values. Normalized metric summaries and costs are plain strings. There
 are no timestamps or generated run IDs, so identical inputs yield identical
 serialized output on supported Python versions.
+
+`render_html` does not mutate the report or change schema v1. It preserves exact
+Decimal serialization through the existing JSON serializer. Outputs are full JSON
+values; reasons are JSON strings, which avoids HTML parser normalization of leading
+newlines, CR and NUL. Case inputs and expected values are absent from report v1 and
+are explicitly labelled as unavailable. All supplied dynamic values occupy escaped
+text nodes; only fixed status values appear in attributes. No report data is embedded
+in JavaScript or CSS. See [HTML reporting](HTML.md) for the optional browser verifier.
