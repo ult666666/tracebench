@@ -11,7 +11,7 @@ provider-free. Supplied prices, token counts and latencies are invented.
 ## Call from another repository
 
 The example pins the complete 0.4.0 implementation ancestor
-`22187e91ada6bede9869e95b9314723c54687ba6`, which contains this workflow, its
+`8c168e5c3b4f4ee68e298086291bdb7ac9b2992a`, which contains this workflow, its
 `scripts/ci_evaluate.py` runner, and the installed package sources. Review and
 trust that code before adopting it. To upgrade, replace **both** occurrences of
 the SHA with the same reviewed immutable commit that contains all these files.
@@ -28,9 +28,9 @@ permissions:
   contents: read
 jobs:
   evaluate:
-    uses: ult666666/tracebench/.github/workflows/recorded-evaluation.yml@22187e91ada6bede9869e95b9314723c54687ba6
+    uses: ult666666/tracebench/.github/workflows/recorded-evaluation.yml@8c168e5c3b4f4ee68e298086291bdb7ac9b2992a
     with:
-      tracebench-ref: 22187e91ada6bede9869e95b9314723c54687ba6
+      tracebench-ref: 8c168e5c3b4f4ee68e298086291bdb7ac9b2992a
       cases: evaluation/cases.jsonl
       outputs: evaluation/candidate.jsonl
       baseline: evaluation/baseline-report.json

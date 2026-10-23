@@ -488,3 +488,10 @@ modules, both CI workflows/runner, Pages and sample bytes are unchanged by this
 scoped repair. Hosted probe refresh, scoped independent re-review and publication
 remain separate parent-owned work; the original independent review record is
 retained unchanged.
+
+After that complete repair was committed, both external workflow/source pins
+were updated in a separate documentation commit to fixed ancestor
+`8c168e5c3b4f4ee68e298086291bdb7ac9b2992a`. It contains the normalization fix,
+all referenced 0.4.0 package/workflow/runner/fixture files and regression tests,
+and supersedes the earlier `22187e9…` consumer example pin. Preserve this actual
+ancestor through merge-commit integration.
