@@ -1,0 +1,147 @@
+{
+  "schema_version": 1,
+  "suite_sha256": "a99313d2d77360598bd69ac001f84a4562ac4dafd79ef199930fbe72a8f94733",
+  "results": [
+    {
+      "id": "en-greeting",
+      "passed": true,
+      "checks": [
+        {
+          "type": "exact",
+          "passed": true,
+          "reason": "exact match"
+        }
+      ],
+      "output": "Hello, world!",
+      "metrics": {
+        "latency_ms": "120",
+        "input_tokens": 10,
+        "output_tokens": 4
+      },
+      "cost": "0.0000022"
+    },
+    {
+      "id": "zh-greeting",
+      "passed": true,
+      "checks": [
+        {
+          "type": "exact",
+          "passed": true,
+          "reason": "exact match"
+        }
+      ],
+      "output": "你好，世界。",
+      "metrics": {
+        "latency_ms": "140",
+        "input_tokens": 12,
+        "output_tokens": 6
+      },
+      "cost": "0.000003"
+    },
+    {
+      "id": "en-summary",
+      "passed": true,
+      "checks": [
+        {
+          "type": "contains",
+          "passed": true,
+          "reason": "substring found"
+        }
+      ],
+      "output": "A community can invest in renewable energy.",
+      "metrics": {
+        "latency_ms": "200",
+        "input_tokens": 40,
+        "output_tokens": 14
+      },
+      "cost": "0.0000082"
+    },
+    {
+      "id": "zh-location",
+      "passed": true,
+      "checks": [
+        {
+          "type": "contains",
+          "passed": true,
+          "reason": "substring found"
+        }
+      ],
+      "output": "北京今天晴朗。",
+      "metrics": {
+        "latency_ms": "160",
+        "input_tokens": 20,
+        "output_tokens": 9
+      },
+      "cost": "0.0000047"
+    },
+    {
+      "id": "en-structured",
+      "passed": true,
+      "checks": [
+        {
+          "type": "json_subset",
+          "passed": true,
+          "reason": "JSON subset matches"
+        }
+      ],
+      "output": {
+        "status": "ready",
+        "count": 2,
+        "source": "synthetic"
+      },
+      "metrics": {
+        "latency_ms": "240",
+        "input_tokens": 30,
+        "output_tokens": 12
+      },
+      "cost": "0.0000066"
+    },
+    {
+      "id": "zh-structured",
+      "passed": true,
+      "checks": [
+        {
+          "type": "json_subset",
+          "passed": true,
+          "reason": "JSON subset matches"
+        }
+      ],
+      "output": {
+        "城市": "上海",
+        "项目": [
+          "教育",
+          "社区"
+        ],
+        "已验证": true
+      },
+      "metrics": {
+        "latency_ms": "180",
+        "input_tokens": 35,
+        "output_tokens": 15
+      },
+      "cost": "0.000008"
+    }
+  ],
+  "summary": {
+    "cases": 6,
+    "passed": 6,
+    "failed": 0,
+    "pass_rate": "1.000000",
+    "latency_ms": {
+      "observed": 6,
+      "missing": 0,
+      "min": "120",
+      "max": "240",
+      "mean": "173.333333",
+      "p50": "160",
+      "p95": "240"
+    },
+    "cost": {
+      "currency": "USD",
+      "total": "0.0000327",
+      "priced_cases": 6,
+      "missing_token_cases": 0
+    }
+  },
+  "comparison": null
+}

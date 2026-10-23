@@ -1,0 +1,120 @@
+name: Reusable recorded evaluation
+
+on:
+  workflow_call:
+    inputs:
+      tracebench-ref:
+        description: Immutable lowercase 40-hex commit in ult666666/tracebench; use the workflow's reviewed SHA
+        required: true
+        type: string
+      cases:
+        description: Checked-in caller-relative UTF-8 case JSONL (regular file, <=10 MiB)
+        required: true
+        type: string
+      outputs:
+        description: Checked-in caller-relative recorded output JSONL (regular file, <=10 MiB)
+        required: true
+        type: string
+      baseline:
+        description: Optional caller-relative prior JSON report for the identical case suite
+        default: ''
+        type: string
+      pricing:
+        description: Optional caller-relative explicit pricing JSON
+        default: ''
+        type: string
+      artifact-name:
+        description: Unique lowercase artifact name, letters/digits/hyphens, starts with a letter, max 63
+        default: tracebench-reports
+        type: string
+      expectation:
+        description: 'Finite choice: pass (real gate) or regression (assert exit 3 for a deliberate verification fixture)'
+        default: pass
+        type: string
+    outputs:
+      evaluation-exit:
+        description: Original evaluation status 0/1/3, when evaluation produced valid reports
+        value: ${{ jobs.evaluate.outputs.evaluation-exit }}
+
+permissions:
+  contents: read
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      evaluation-exit: ${{ steps.evaluate.outputs.exit_code }}
+    steps:
+      - name: Validate immutable source revision and finite workflow choices
+        id: options
+        env:
+          TB_SOURCE_SHA: ${{ inputs.tracebench-ref }}
+          TB_ARTIFACT: ${{ inputs.artifact-name }}
+          TB_EXPECTATION: ${{ inputs.expectation }}
+        shell: python
+        run: |
+          import os, re
+          sha, name, expectation = (os.environ[key] for key in ('TB_SOURCE_SHA', 'TB_ARTIFACT', 'TB_EXPECTATION'))
+          if re.fullmatch(r'[0-9a-f]{40}', sha) is None:
+              raise SystemExit('tracebench-ref must be a lowercase immutable 40-hex SHA')
+          if re.fullmatch(r'[a-z][a-z0-9-]{0,62}', name) is None:
+              raise SystemExit('artifact-name must match [a-z][a-z0-9-]{0,62}')
+          if expectation not in {'pass', 'regression'}:
+              raise SystemExit('expectation must be pass or regression')
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as stream:
+              stream.write(f'source_sha={sha}\nartifact_name={name}\n')
+      - name: Check out caller inputs and code (read-only token)
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          path: caller
+          persist-credentials: false
+      - name: Check out pinned TraceBench source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: ult666666/tracebench
+          ref: ${{ steps.options.outputs.source_sha }}
+          path: _tracebench
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.13'
+      - name: Install pinned stdlib-only package without dependency downloads
+        shell: bash
+        run: |
+          python -m venv "$RUNNER_TEMP/tracebench-venv"
+          "$RUNNER_TEMP/tracebench-venv/bin/python" -m pip install --no-index "$GITHUB_WORKSPACE/_tracebench"
+          cd "$RUNNER_TEMP"
+          "$RUNNER_TEMP/tracebench-venv/bin/tracebench" --version
+      - name: Evaluate recorded inputs and stage reports (valid outcomes 0/1/3)
+        id: evaluate
+        env:
+          TB_WORKSPACE: ${{ github.workspace }}/caller
+          TB_CASES: ${{ inputs.cases }}
+          TB_OUTPUTS: ${{ inputs.outputs }}
+          TB_BASELINE: ${{ inputs.baseline }}
+          TB_PRICING: ${{ inputs.pricing }}
+          TB_EXPECTATION: ${{ inputs.expectation }}
+          TB_SOURCE_SHA: ${{ steps.options.outputs.source_sha }}
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP"
+          "$RUNNER_TEMP/tracebench-venv/bin/python" "$GITHUB_WORKSPACE/_tracebench/scripts/ci_evaluate.py" evaluate
+      - name: Upload only generated evaluation reports before applying the gate
+        if: ${{ !cancelled() && steps.evaluate.outcome == 'success' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ steps.options.outputs.artifact_name }}
+          path: ${{ steps.evaluate.outputs.report_dir }}/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Apply evaluation gate (or assert the deliberate regression fixture)
+        if: ${{ !cancelled() && steps.evaluate.outcome == 'success' }}
+        env:
+          TB_WORKSPACE: ${{ github.workspace }}/caller
+          TB_REPORT_DIR: ${{ steps.evaluate.outputs.report_dir }}
+          TB_EXPECTATION: ${{ inputs.expectation }}
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP"
+          "$RUNNER_TEMP/tracebench-venv/bin/python" "$GITHUB_WORKSPACE/_tracebench/scripts/ci_evaluate.py" gate

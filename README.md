@@ -131,11 +131,18 @@ by ID, rejects missing/extra cases, and verifies a canonical suite fingerprint.
 Changed prompts, descriptions, or checks require a fresh baseline. Existing
 failures remain exit 1; improvements do not cancel a regression.
 
+Use the [reusable recorded-evaluation workflow](docs/CI.md) to upload JSON, Markdown
+and HTML reports before applying the real regression gate. This repository calls
+it with both clean and deliberately regressed synthetic fixtures; the regression
+verification explicitly asserts exit 3. External callers pin the workflow and
+TraceBench source to the same reviewed immutable commit.
+
 ## Reviewer path
 
 - [Architecture](docs/ARCHITECTURE.md): data flow, validation, baseline compatibility, packaging.
 - [Methodology and limitations](docs/METHODOLOGY.md): exact formulas, coverage, and statistical limits.
 - [Library API](docs/API.md): a complete offline example.
+- [Recorded evaluation CI](docs/CI.md): reusable consumer gate, artifacts, trust and path boundaries.
 - [HTML reporting](docs/HTML.md): offline inspection, security, printing, and sample reproduction.
 - [中文指南](docs/README.zh-CN.md): 快速运行与结果解释。
 - [Verification record](docs/VERIFICATION.md): actual tests and installed CLI checks.
@@ -147,4 +154,6 @@ python3 -m unittest discover -v
 The suite tests file boundaries, multilingual behavior, hand-computed metrics,
 malformed baselines, report escaping, actual subprocess exits, and wheel/source
 archive builds. GitHub Actions targets Python 3.11 and 3.13 with read-only
-permissions. See [contributing](CONTRIBUTING.md) and [security](SECURITY.md).
+permissions. A separate Node 24 / exact Playwright 1.61.1 development job
+requires actual Chromium interaction checks; the installed package remains
+standard-library Python. See [contributing](CONTRIBUTING.md) and [security](SECURITY.md).

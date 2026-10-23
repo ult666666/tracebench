@@ -240,3 +240,107 @@ no-JavaScript, print and zero-HTTP(S)-request checks passed again.
 The prior platform, accessibility, high-volume and independent-audit limitations
 still apply. The repair was committed locally for scoped independent re-review;
 publishing and hosted verification remain separate work.
+
+## 0.3.0: reusable recorded-evaluation CI (local evidence)
+
+On **2026-10-23**, the consumer CI feature was verified locally against the
+unchanged 0.2.0 report/schema contracts. The clean base had **65** passing tests.
+Seven new runner behavior tests were written first: the positive boundary cases
+initially failed because `scripts/ci_evaluate.py` did not exist. After implementing
+the runner, the complete **72-test** suite passed on **Python 3.13.7** and
+**Python 3.15.0**. Subsequent red/green checks proved clear option diagnostics and
+rejection of a changed successful-looking gate status for a regression report.
+Version packaging tests failed against 0.2.0 before metadata/runtime moved to
+0.3.0, then passed. JSON/Markdown schema and rendering were not changed.
+
+Actual child-process tests cover normal exits 0/1/3, expected-regression assertion,
+invalid records, missing/nonregular/oversize files, symlink files/directories,
+traversal/private/runtime paths, literal shell metacharacters, spaces and leading
+hyphens, preserved input bytes, copied artifact handoff, tampered files/metadata,
+and outside-directory gates. The actual embedded pre-checkout Python option block
+was additionally executed with **11** controlled valid/invalid cases, verifying
+immutable SHA validation, finite expectation choices and artifact-name/output
+injection rejection before any source checkout. `actionlint 1.7.7` and
+`git diff --check` passed; actionlint was downloaded from its official GitHub
+release and matched that release's published checksum.
+
+Fresh Python 3.13 environments installed **0.3.0** from the source checkout,
+generated wheel and generated source archive with
+`pip install --no-cache-dir --no-index`. Each console script and imported metadata
+reported 0.3.0 from outside the checkout. Each installed interpreter ran the new
+runner outside the checkout without `PYTHONPATH`, generated all three reports,
+handed them off for upload, propagated normal **0/1/3**, and passed only the
+explicit expected-3 verification. The original installed demo still produced
+baseline=0, clean=0, regression=3, check failure=1, invalid=2; clean results remain
+6/6, mean 150 ms and known synthetic cost 0.0000327 USD. The wheel contains only
+Python package and dist-info files, with no runtime dependency metadata.
+
+With **Node 24.18.0**, `npm ci --ignore-scripts --prefix browser` installed the
+exact **Playwright 1.61.1** lock, and the existing actual browser verifier ran
+against all three fresh installed CLIs using `--require-browser`.
+**Chromium 149.0.7827.55** passed desktop/mobile 1280/390/320 px layout, search,
+all filters, live counts, keyboard operation, no-JavaScript details, print,
+hostile text round-trip, markup injection rejection and zero HTTP(S) requests.
+Desktop/mobile screenshots and print PDFs were generated as explicit synthetic
+artifacts. The committed HTML sample retains SHA-256
+`0f4bad9a7d8e4ae6bcc1a141f058f4562359a44c07527a05eef5643a4e757ddc`.
+The main-only Pages workflow, including its per-ref concurrency fix, is unchanged.
+
+The reusable workflow's source was cross-checked with the official GitHub and
+Playwright references linked in [CI integration](CI.md). Its self-CI callers use
+separate clean and expected-regression jobs; the latter explicitly asserts 3 and
+does not weaken the normal gate. External usage pins both workflow and package
+source to an immutable commit containing the referenced scripts.
+
+This record establishes local runner/CLI/browser and syntax evidence only.
+Hosted clean/regression job execution, actual artifact downloads/summaries, a
+normal failing regression gate, independent review, merge and publication remain
+separate parent-owned verification. Python 3.11 is configured in CI but was not
+run locally. Prior browser/platform/accessibility/high-volume/audit limits remain.
+
+The external caller example is pinned to feature implementation ancestor
+`ce9b77c75887f12fa668db91eb7a8682a8303285` for both workflow and TraceBench
+source. That commit contains every referenced runner/script and declares package
+0.3.0; it does not point at the older 0.2.0 release. The documentation pin was
+added afterward so its literal SHA identifies an actual existing commit.
+
+## 0.3.0 review repair: generated JSON size bound
+
+Independent review found that both CI runner stages applied `load_json`'s default
+16 MiB input bound to generated reports, despite advertising a 64 MiB artifact
+bound. Six valid 500,000-character recorded outputs can produce about 18 MB of
+JSON after HTML-sensitive character escaping; each real CLI format succeeds,
+but the runner previously returned 2 and removed staging, or rejected a correctly
+hashed gate handoff.
+
+Five installed-wheel regression/boundary tests now exercise the real CLI from
+outside the checkout with no `PYTHONPATH`. Before the repair, the two independent
+positive methods produced **six failing subtests**: evaluate/upload handoff and
+independently generated gate reports, each with actual outcome **0, 1 and 3**.
+Both generated `report.json` reads now explicitly pass `max_bytes=REPORT_LIMIT`.
+The helper default, CLI baseline-input limit, schemas, renderer, 10 MiB workflow
+input cap and 64 MiB generated-report cap are unchanged.
+
+The new tests also generate a real valid JSON report above 64 MiB from separately
+bounded case/output files and prove evaluation rejects it with exit 2, no upload
+handoff and removed staging. A sparse 64 MiB + 1 byte report proves the gate
+rejects the size before hashing. An installed CLI baseline test verifies that a
+valid report over 16 MiB still cannot enter through the unchanged baseline-input
+interface. The complete **77-test** suite passes on both **Python 3.13.7** and
+**Python 3.15.0**. The large valid reports retain normal gate outcomes 0/1/3 and
+are preserved in the upload handoff.
+
+Fresh source, wheel and source-archive environments were rebuilt and installed
+again with `pip install --no-cache-dir --no-index` after this repair. Each reports
+metadata/runtime/CLI version **0.3.0** outside the checkout, preserves real normal
+gates 0/1/3 and explicit expected-3 verification, and passes the original demo,
+exact HTML sample and required real Chromium checks. `actionlint 1.7.7` and
+`git diff --check` pass; Pages source and sample bytes remain unchanged. Hosted
+PR execution and publication are separate parent-owned work.
+
+After the size-bound repair, the external example's workflow and source pins both
+point to fixed implementation ancestor `9cfe62a4afd613fc9a15e24018cdf77bc8f65977`.
+That actual commit contains the repaired runner, workflow and all referenced
+package/browser/fixture files at version 0.3.0. It supersedes the original
+`ce9b77c…` example pin above; preserving this ancestor during merge retains the
+reviewed source provenance.
