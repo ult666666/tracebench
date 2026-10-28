@@ -88,10 +88,10 @@ python3 scripts/verify_html.py --require-browser --browser-module browser/node_m
 
 On Linux, install Chromium system dependencies with
 `browser/node_modules/.bin/playwright install --with-deps chromium`, as CI does.
-The Python verifier never installs Node dependencies itself. Without explicit
-`--browser-module`, it retains the older optional lookup for
-`../impact-ledger/node_modules/playwright`; unavailable tooling prints a clear
-skip. The dedicated CI browser job requires the locked module and uses
+The Python verifier never installs Node dependencies itself. Without
+`--browser-module`, it looks for the locked module in
+`browser/node_modules/playwright`; if Node or that module is missing, it prints a
+clear skip. The dedicated CI browser job requires the locked module and uses
 `--require-browser`, so missing tooling fails that job.
 
 The browser verifier checks desktop 1280 px and mobile 390/320 px overflow, search,
@@ -113,8 +113,7 @@ committed synthetic example, copied to `index.html` after the full test suite,
 no-index package installation, installed CLI verification and exact sample-byte
 check. The workflow deploys only that staging directory. It does not accept files,
 call providers, store user records or publish arbitrary local reports. Repository
-Pages must use GitHub Actions. The hosted bytes are checked separately after
-deployment; a configured workflow alone is not evidence that publication passed.
+Pages must use GitHub Actions as its source.
 
 Concurrency is scoped to the triggering Git ref. A manually dispatched feature
 branch skips both jobs and cannot cancel a main-branch publication by sharing

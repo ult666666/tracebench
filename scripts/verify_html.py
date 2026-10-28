@@ -84,13 +84,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cli", type=Path, help="installed CLI; run it outside checkout")
     parser.add_argument("--write-sample", action="store_true", help="regenerate docs/sample-report.html from committed fixtures")
-    parser.add_argument("--browser-module", type=Path, help="existing Playwright module directory; no installation is attempted")
+    parser.add_argument("--browser-module", type=Path, help="existing Playwright module directory (default: browser/node_modules/playwright); no installation is attempted")
     parser.add_argument("--require-browser", action="store_true", help="fail if optional local browser tooling is unavailable")
     parser.add_argument("--artifacts", type=Path, help="keep generated HTML and desktop/mobile screenshots in this directory")
     args = parser.parse_args()
     if args.write_sample:
         (ROOT / "docs/sample-report.html").write_bytes(sample_report().encode("utf-8"))
-    browser_module = args.browser_module or ROOT.parent / "impact-ledger/node_modules/playwright"
+    browser_module = args.browser_module or ROOT / "browser/node_modules/playwright"
     node = shutil.which("node")
     available = node is not None and (browser_module / "package.json").is_file()
     if args.require_browser and not available:
