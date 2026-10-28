@@ -173,12 +173,12 @@ Implementation was cross-checked against GitHub's
 [artifact upload action](https://github.com/actions/upload-artifact), and
 [Playwright CI setup](https://playwright.dev/docs/ci-intro).
 
-Local runner/browser execution and actionlint do not establish hosted workflow
-behavior or release protection. Inspect the actual hosted clean and expected-3
-jobs, their artifacts and summaries, and a deliberately failing normal gate before
-relying on a required check. Hosted verification and publication are recorded
-separately after integration. This is a deterministic recorded-output check, not
-a statistical benchmark, security audit, or guarantee about live model behavior.
+This repository's own CI runs the clean, expected-regression and budget jobs on
+every push and pull request (see [Verification](VERIFICATION.md)). Before you make
+the gate a required check in your own repository, run it once with a deliberately
+failing input and confirm that the job fails and the reports are uploaded. This is
+a deterministic recorded-output check, not a statistical benchmark, security
+audit, or guarantee about live model behavior.
 
 ## Optional recorded-observation budgets (0.4.0)
 
@@ -187,10 +187,8 @@ strict schema 1 policy JSON path. It uses the same path restrictions above and a
 stricter **64 KiB** file cap. Thresholds are explicit decimal strings; at least
 one is required. Use `fixtures/budget-pass.json` or `fixtures/budget-fail.json`
 with the checked-in clean fixture and explicit pricing to reproduce policy 0/1.
-The example above pins an actual complete 0.4.0 source ancestor containing this
-workflow, runner, policy module and fixtures. Both literal SHAs match. Its docs
-pin was added in a later commit; retain that implementation ancestor through
-merge-commit integration, and repin after any future runtime/workflow repair.
+The example above pins a commit that contains this workflow, the runner, the
+policy module and the fixtures. Both SHAs in the example must match.
 
 With rules, the exact artifact set is `report.json`, `report.md`, `report.html`,
 `provenance.json`, `gate.json`, **`policy.json`, `policy.md`, `rules.json`**.
@@ -247,6 +245,6 @@ even if the original rules input was removed. This prevents a missing policy set
 from silently changing a selected-budget run into a no-policy gate. Computation
 uses only the staged snapshot, not a caller-selected executable or output path. Installed-CLI tests cover 0/1/unavailable/invalid policy, exact artifact
 sets/hashes and copied handoff, real failure priority, fixture assertions,
-recomputed-verdict tamper rejection and no-policy behavior. Hosted normal failing
-budget, artifact retention, actual own-CI calls and Pages checks remain separate
-integration evidence; local subprocess tests do not claim those hosted results.
+recomputed-verdict tamper rejection and no-policy behavior. A normal gate that
+fails on a budget is not run in this repository's CI, because it would fail the
+build; the policy-failure assertion job covers that path instead.

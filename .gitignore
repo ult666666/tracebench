@@ -9,3 +9,6 @@ reports/
 .env
 .env.*
 browser/node_modules/
+
+# Local agent planning notes (not part of the project docs)
+docs/superpowers/
