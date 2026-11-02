@@ -1,5 +1,17 @@
 # Methodology and limitations
 
+How TraceBench computes each number in a report, and what each number cannot tell you.
+
+| Section | What it covers |
+| --- | --- |
+| [Deterministic checks](#deterministic-checks) | `exact`, `contains`, `json_subset` and the pass rate |
+| [Recorded latency](#recorded-latency) | The mean and nearest-rank percentiles of supplied latencies |
+| [Token cost](#token-cost) | Exact decimal cost from supplied token counts and prices |
+| [Baseline gate](#baseline-gate) | Regressions and improvements against a baseline |
+| [Synthetic demo](#synthetic-demo) | What the bundled fixtures show, and what they do not |
+| [Budgets](#budgets) | How `tracebench policy` compares a report with its thresholds |
+| [Paired statistics and gates](#paired-statistics-and-gates) | The McNemar test, bootstrap intervals, the four gates, detectable effects and simulated error rates |
+
 ## Deterministic checks
 
 `exact` compares strings literally. `contains` looks for a nonempty literal
@@ -38,7 +50,7 @@ Single-report percentiles have no confidence intervals and there are no
 repeated-run aggregates. A comparison with a baseline adds a paired bootstrap
 interval for the change in mean latency (see the paired statistics section).
 
-## Explicit token cost
+## Token cost
 
 The caller supplies both nonnegative integer `input_tokens` and `output_tokens`
 per observed case and separate decimal price strings. For each priced case:
@@ -71,7 +83,7 @@ budgets use the separate policy command described below. Version 0.5.0 adds
 statistical gates that weigh regressions against improvements; see the last
 section.
 
-## Synthetic demo interpretation
+## Synthetic demo
 
 All six fixtures, observations, and prices were created for this demonstration.
 No model was called. The clean candidate has 6/6 passes, a 150 ms supplied mean,
@@ -84,9 +96,9 @@ It cannot establish whether cases represent real users, whether recorded data
 is trustworthy, or whether a change is safe to deploy. Human review and broader
 evaluation remain outside its scope.
 
-## Explicit recorded-observation budgets (0.4.0)
+## Budgets
 
-The optional separate `policy` command applies only caller-selected rules to an
+Added in 0.4.0. The optional separate `policy` command applies only caller-selected rules to an
 already validated evaluation. It never changes the evaluation report, check outcomes,
 baseline comparison or the default evaluation exit codes.
 
@@ -111,9 +123,9 @@ only a deterministic relationship between supplied values and selected limits.
 It does not establish measured provider performance, authenticated observations,
 model safety, production quality, spending authority or representativeness.
 
-## Paired statistics and statistical gates (0.5.0)
+## Paired statistics and gates
 
-Recorded outputs from a nondeterministic system change between runs even when
+Added in 0.5.0. Recorded outputs from a nondeterministic system change between runs even when
 nothing that matters changed. The default `any-regression` gate fails on a
 single pass-to-fail case, so it fails almost every unchanged candidate on a
 noisy suite: with 100 cases of which 10% change status at random, its exact

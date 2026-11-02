@@ -17,7 +17,7 @@ from tracebench.html_report import render_html
 from tracebench.io import load_cases, load_outputs, load_pricing
 from tracebench.report import render_json
 
-DEMO_NOTICE = '<aside class="demo-label">Synthetic recorded-output demo · All outputs, latency observations, token counts and prices are invented fixtures. No provider was called.</aside>'
+DEMO_NOTICE = '<aside class="demo-label">Sample report built from the synthetic fixtures in this repository. The outputs, latencies, token counts and prices are made up, and no model was called.</aside>'
 
 
 def sample_report():
@@ -26,7 +26,7 @@ def sample_report():
     report["comparison"] = compare_baseline(report, evaluate(cases, load_outputs(ROOT / "fixtures/baseline.jsonl"), pricing=pricing))
     # The example's provenance notice is fixed, not inferred for arbitrary reports.
     return (render_html(report).replace("<body>", "<body>" + DEMO_NOTICE, 1)
-            .replace("<title>TraceBench evaluation report</title>", "<title>TraceBench · Synthetic recorded-output demo</title>", 1))
+            .replace("<title>TraceBench evaluation report</title>", "<title>TraceBench sample report (synthetic data)</title>", 1))
 
 
 def browser_fixture(directory):
