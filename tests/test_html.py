@@ -61,7 +61,7 @@ class HtmlTests(unittest.TestCase):
     def test_complete_metrics_and_comparison_are_inspectable(self):
         document = Document(self.render(fixture_report()))
         text = " ".join(document.text)
-        for value in ["FAIL", "4 / 6", "Regressions", "Improvements", "2", "0",
+        for value in ["Failed: 2 of 6 cases", "4 / 6", "Regressions", "Improvements", "2", "0",
                       "nearest-rank", "0.0000327", "USD", "6 / 6", "en-greeting", "zh-location",
                       "Suite fingerprint", "supplied by the caller", "not retained"]:
             self.assertIn(value, text)
@@ -121,7 +121,7 @@ class HtmlTests(unittest.TestCase):
         report = evaluate({"x": {"id": "x", "input": "", "checks": [{"type": "exact", "expected": "ok"}]}},
                           {"x": {"id": "x", "output": "ok"}})
         text = " ".join(Document(self.render(report)).text)
-        for value in ["PASS", "0 / 1", "Latency unavailable", "Cost unavailable", "No baseline supplied", "not a total bill"]:
+        for value in ["Passed: 1 of 1 case", "0 / 1", "Latency unavailable", "Cost unavailable", "No baseline supplied", "not a total bill"]:
             self.assertIn(value, text)
 
     def test_every_comparison_status_and_accessible_controls(self):

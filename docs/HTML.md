@@ -27,9 +27,9 @@ comparison is unavailable; missing measurements are labelled unavailable, never
 replaced by zero. Partial known cost is not a total bill, and recorded observations
 have no independently verified provider provenance.
 
-Each case has a precise PASS/FAIL label, a regression/improvement badge when
-applicable, supplied metrics, expandable output, and individual check results and
-reasons. Report schemas 1 and 2 do not retain case inputs or expected values; these
+Each case shows whether it passed or failed, notes a regression or improvement
+when there is one, and lists its supplied metrics, its expandable output, and each
+check's result and reason. Report schemas 1 and 2 do not retain case inputs or expected values; these
 are not invented. Outputs are full JSON values and reasons are JSON strings, preserving
 exact decimals, Unicode, leading newlines and control characters. Nothing is
 truncated. Quotes and JSON escapes are part of that representation.
