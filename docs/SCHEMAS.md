@@ -68,7 +68,7 @@ JSON/Markdown serialization, and does not use the caller's Decimal context.
 
 ## JSON report version 1
 
-Top-level keys are exactly `schema_version`, `suite_sha256`, `results`,
+Reports from TraceBench 0.4 and earlier. Top-level keys are exactly `schema_version`, `suite_sha256`, `results`,
 `summary`, and `comparison`.
 
 Each result contains `id`, Boolean `passed`, a nonempty `checks` array,
@@ -88,6 +88,41 @@ Comparison is null unless a baseline is supplied. Then it contains
 `baseline_passed`, `current_passed`, sorted `regressions` and `improvements` ID
 arrays, and an `unchanged` count. Report totals and statuses are validated for
 internal consistency before a report is accepted as a baseline.
+
+## JSON report version 2 (0.5.0)
+
+TraceBench 0.5.0 writes `schema_version: 2` and reads versions 1 and 2 wherever a
+report is an input: `--baseline`, `policy --evaluation`, the HTML renderer and the
+CI runner. Other versions are rejected with an error that names the supported
+ones. Version 2 has the same top-level keys and results as version 1. When a
+baseline is supplied, `comparison` gains two keys:
+
+- `statistics`: `alpha` (normalized decimal string), `resamples` and `seed`
+  (integers), `power` (`"0.8"`), and one object each for `pass_rate`,
+  `check_pass_rate`, `latency_ms` and `cost`. Latency and cost are `null` with
+  fewer than two cases observed in both reports; cost is also `null` without one
+  shared currency.
+- `gate`: `policy` (one of the four gate names), `margin` (decimal string for
+  `noninferiority` and `confident-regression`, otherwise `null`), Boolean
+  `failed`, and a fixed `reason` sentence.
+
+Every metric object has `pairs` (cases used), `baseline`, `current`, `delta`,
+`ci_lower`, `ci_upper` and `mde`. Rates and mean latency are rounded half-even to
+six decimals; cost values are exact totals, and cost also has `currency`. `delta`
+and the bounds may be negative. `mde` is a positive decimal string with six
+significant digits, or `null` with fewer than two pairs or no variance. The pass
+rate also has `discordant`, the two-sided `mcnemar_p`, `mcnemar_regression_p`,
+`critical_regressions` (integer or `null`) and `min_discordant`. p-values have six
+significant digits and use E notation below 1e-6.
+
+Validation recomputes everything that the report itself determines and requires
+an exact match: the pass-rate block except `mde` (including the bootstrap interval,
+from the regression and improvement IDs, `resamples` and `seed`), the current
+check pass rate, and the gate verdict. The other metrics depend on the baseline's
+per-case data, which a report does not keep, so they are checked for structure,
+ranges and ordered bounds. `mde` uses floating point and is checked for range
+only. A version 1 report must not contain the new keys, and a version 2
+comparison must contain both.
 
 ## Policy rules version 1 (separate document)
 
@@ -120,8 +155,8 @@ values normalize identically, and the result obeys the same input bounds. Zero i
 valid; `-0` is outside the syntax.
 
 The CLI rules reader is limited to **65,536 bytes**, including whitespace. Its
-separate evaluation-report reader permits **67,108,864 bytes** and uses unchanged
-schema 1 report validation. This does not raise the evaluate baseline reader's
+separate evaluation-report reader permits **67,108,864 bytes** and uses the same
+report validation (schema 1 or 2). This does not raise the evaluate baseline reader's
 **16,777,216-byte** bound. File limits do not apply to direct API objects.
 
 ## Policy verdict version 1 (separate from report schema 1)

@@ -21,7 +21,8 @@ prior report ── structural validation ─ suite fingerprint ─────�
 | --- | --- |
 | `io.py` | Bounded UTF-8 reads, duplicate keys/IDs, finite numbers, record validation |
 | `checks.py` | Exact string, literal substring, recursive JSON subset checks |
-| `evaluate.py` | ID joins, case/check results, cost/latency coverage, suite fingerprint, baseline compatibility |
+| `evaluate.py` | ID joins, case/check results, cost/latency coverage, suite fingerprint, baseline compatibility, schema 2 statistics and their validation |
+| `paired.py` | Exact McNemar tails, critical counts, seeded paired bootstrap, percentile intervals, detectable effects, gate options and decisions |
 | `report.py` | Exact-number JSON serialization and escaped Markdown previews |
 | `html_report.py` | Validated standalone HTML, full inert JSON outputs/reasons, hashed CSP, optional search/filter and print CSS |
 | `cli.py` | Argument parsing, exit-code precedence, protected atomic report replacement |
@@ -47,7 +48,7 @@ Cost remains decimal through multiplication, division, summation, and rendering.
 
 ## Baseline compatibility
 
-A baseline is a prior JSON report with schema version 1. Its IDs, booleans,
+A baseline is a prior JSON report with schema version 1 or 2. Its IDs, booleans,
 check results, metric types, costs, summary counts, and optional comparison
 must be internally consistent. Duplicate report IDs and inconsistent summary
 totals are rejected. Comparison also validates the current report.
@@ -68,8 +69,16 @@ regression and an improvement; regressions still return exit 3.
 Baseline validation establishes structure and consistency, not authenticity.
 A caller can fabricate observations or alter a report and recompute its summary.
 The hash identifies the case suite; it is not a signed provenance mechanism.
-Baseline prices and observations may differ from the candidate's. The gate
-compares pass/fail only, not latency or budget thresholds.
+Baseline prices and observations may differ from the candidate's. The gates
+compare pass/fail only, not latency or budget thresholds; latency, cost and check
+score changes are reported with paired intervals but never gated.
+
+Paired statistics sort cases by ID before resampling, so neither case-file nor
+output-file order changes a number. The pass-rate statistics and the gate verdict
+are a pure function of the comparison's regression and improvement IDs, the case
+count, alpha, the resample count and the seed. Report validation therefore
+recomputes them, which costs one extra bootstrap pass whenever a schema 2 report
+with a comparison is read.
 
 ## Output safety and writes
 

@@ -4,7 +4,10 @@
 
 **Inspect recorded AI outputs before a prompt change ships.** TraceBench is a
 small offline evaluator: join cases to outputs by ID, apply deterministic checks,
-calculate explicitly priced token costs, and stop on baseline regressions.
+calculate explicitly priced token costs, and stop on baseline regressions. Version
+0.5.0 adds paired statistics: an exact McNemar test, bootstrap confidence
+intervals and minimum detectable effects, with gates that tell a real regression
+from run-to-run noise.
 
 Python 3.11+ · standard library only · no provider calls or credentials · MIT
 
@@ -84,6 +87,8 @@ tokens. TraceBench does not retrieve prices or infer token counts.
 ```text
 tracebench evaluate --cases PATH --outputs PATH
     [--pricing PATH] [--baseline PATH]
+    [--gate any-regression|mcnemar|noninferiority|confident-regression]
+    [--alpha DECIMAL] [--margin DECIMAL] [--resamples N] [--seed N]
     [--format json|markdown|html] [--report PATH]
 tracebench policy --evaluation REPORT_JSON --rules RULES_JSON
     [--format json|markdown] [--report PATH]
@@ -116,21 +121,23 @@ HTML to stdout. The HTML report:
 - loads no external assets. Recorded content is escaped text, and a strict
   Content Security Policy blocks network access, forms and frames.
 
-Schema v1 reports do not keep case inputs or expected values, so the HTML view
-cannot show them. See [HTML reporting](docs/HTML.md) for sample generation and
+Reports do not keep case inputs or expected values, so the HTML view cannot show
+them. See [HTML reporting](docs/HTML.md) for sample generation and
 browser verification.
 
 | Exit | Meaning and precedence |
 | --- | --- |
-| `0` | All checks pass; no regression |
-| `1` | At least one failed case; no pass-to-fail regression |
+| `0` | All checks pass; no regression. With a statistical `--gate`: the gate passed |
+| `1` | At least one failed case; no pass-to-fail regression (default gate only) |
 | `2` | Invalid input, incompatible baseline, usage, or I/O error |
-| `3` | At least one pass-to-fail regression against a compatible baseline |
+| `3` | At least one pass-to-fail regression against a compatible baseline. With a statistical `--gate`: the gate failed |
 
 A baseline is a prior **JSON report** for the same case suite. Comparison joins
 by ID, rejects missing/extra cases, and verifies a canonical suite fingerprint.
-Changed prompts, descriptions, or checks require a fresh baseline. Existing
-failures remain exit 1; improvements do not cancel a regression.
+Changed prompts, descriptions, or checks require a fresh baseline. With the
+default gate, existing failures remain exit 1 and improvements do not cancel a
+regression. Reports are written as schema 2; schema 1 reports from 0.4 are still
+read as baselines and by `policy`.
 
 The [reusable recorded-evaluation workflow](docs/CI.md) uploads JSON, Markdown and
 HTML reports, then applies the regression gate. This repository's CI calls it with
@@ -162,6 +169,50 @@ numbers you supplied. The reusable workflow takes an optional `rules` input; see
 [CI integration](docs/CI.md), [rules and verdict schemas](docs/SCHEMAS.md) and
 [methodology](docs/METHODOLOGY.md).
 
+## Statistical regression gates (0.5.0)
+
+On a nondeterministic system some cases flip between runs even when nothing
+changed, so failing on any single regression mostly flags noise. With a baseline,
+every report now includes paired statistics: an exact McNemar test on the cases
+that changed status, seeded paired bootstrap intervals for the change in pass
+rate, check pass rate, mean latency and total cost, and the minimum detectable
+effect for the suite's size. `--gate` chooses what exit 3 means:
+
+| `--gate` | Fails (exit 3) when |
+| --- | --- |
+| `any-regression` | any case passed in the baseline and fails now (default, the 0.4 behaviour) |
+| `mcnemar` | the exact two-sided McNemar p-value is below `--alpha` and regressions outnumber improvements |
+| `noninferiority` | the pass-rate interval's lower bound is below `-margin`: the candidate has not shown it is within the margin |
+| `confident-regression` | the pass-rate interval's upper bound is below `-margin`: the drop is confidently larger than the margin |
+
+The synthetic demo in `fixtures/paired/` has 100 cases. The baseline passes 80
+(so its own evaluation exits 1). The noisy candidate swaps 5 passing and 5
+failing cases; the regressed candidate breaks 12 and fixes 1.
+
+```sh
+.venv/bin/tracebench evaluate --cases fixtures/paired/cases.jsonl --outputs fixtures/paired/baseline.jsonl --pricing fixtures/pricing.json --report reports/paired-baseline.json
+.venv/bin/tracebench evaluate --cases fixtures/paired/cases.jsonl --outputs fixtures/paired/noisy.jsonl --pricing fixtures/pricing.json --baseline reports/paired-baseline.json
+.venv/bin/tracebench evaluate --cases fixtures/paired/cases.jsonl --outputs fixtures/paired/noisy.jsonl --pricing fixtures/pricing.json --baseline reports/paired-baseline.json --gate mcnemar
+.venv/bin/tracebench evaluate --cases fixtures/paired/cases.jsonl --outputs fixtures/paired/regressed.jsonl --pricing fixtures/pricing.json --baseline reports/paired-baseline.json --gate mcnemar --format markdown
+```
+
+These exit **1, 3, 0, 3**. The noisy candidate fails the default gate on its 5
+regressions, but its McNemar p-value is 1 and its pass-rate interval is -0.06 to
+0.06. The regressed candidate's pass rate falls by 0.11 (95% interval -0.18 to
+-0.04, McNemar p = 0.00341797); it is also 4.577 ms slower (interval 2.226 to
+7.007) and costs 0.00006 USD more in total. Each table row ends with the detectable
+change: at 80% power this suite can only detect pass-rate changes of about 0.09,
+so `--gate noninferiority --margin 0.05` rejects even the noisy candidate.
+
+[Methodology](docs/METHODOLOGY.md#paired-statistics-and-statistical-gates-050)
+gives the formulas, the references and a simulation of each gate's false-failure
+rate and power. In short, on synthetic 100-case suites where 10% of cases flip at
+random: `any-regression` failed 99.4% of unchanged suites; `mcnemar`, which is
+exact, failed 1.1% (nominal at most 2.5%); and `noninferiority` with margin 0.02
+accepted 4.95% of candidates whose true drop equalled the margin (nominal 2.5%),
+which is why small suites should use `mcnemar`. Cases are assumed independent, and
+the gates judge pass/fail only.
+
 ## Reviewer path
 
 - [Architecture](docs/ARCHITECTURE.md): data flow, validation, baseline compatibility, packaging.
@@ -178,6 +229,9 @@ python3 -m unittest discover -v
 
 The suite covers file boundaries, multilingual checks, hand-computed metrics,
 malformed baselines, report escaping, real subprocess exit codes, and wheel and
-source-archive builds. CI runs it on Python 3.11 and 3.13, along with the
+source-archive builds. The statistics tests compare exact p-values with hand
+derivations and brute-force enumeration, check bootstrap invariants (symmetry,
+case-order independence, identical runs never failing) over seeded random suites,
+and measure gate error rates by exact computation and simulation. CI runs it on Python 3.11 and 3.13, along with the
 recorded-evaluation gates and a Chromium browser job; the installed package stays
 standard-library Python. See [contributing](CONTRIBUTING.md) and [security](SECURITY.md).

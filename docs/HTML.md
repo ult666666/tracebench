@@ -20,15 +20,17 @@ the same semantics as JSON and Markdown.
 The summary shows the suite fingerprint, pass/fail counts, known token cost and
 currency, priced/missing-token coverage, and observed/missing latency coverage.
 Latency includes supplied mean, minimum, maximum and nearest-rank p50/p95. Baseline
-comparisons show regressions, improvements and unchanged counts. No baseline means
+comparisons show regressions, improvements and unchanged counts, and for schema 2
+reports also the gate verdict, the paired changes with their bootstrap intervals
+and detectable changes, and the exact McNemar test. No baseline means
 comparison is unavailable; missing measurements are labelled unavailable, never
 replaced by zero. Partial known cost is not a total bill, and recorded observations
 have no independently verified provider provenance.
 
 Each case has a precise PASS/FAIL label, a regression/improvement badge when
 applicable, supplied metrics, expandable output, and individual check results and
-reasons. Report schema v1 does not retain case inputs or expected values; these are
-not invented. Outputs are full JSON values and reasons are JSON strings, preserving
+reasons. Report schemas 1 and 2 do not retain case inputs or expected values; these
+are not invented. Outputs are full JSON values and reasons are JSON strings, preserving
 exact decimals, Unicode, leading newlines and control characters. Nothing is
 truncated. Quotes and JSON escapes are part of that representation.
 

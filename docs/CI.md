@@ -248,3 +248,43 @@ sets/hashes and copied handoff, real failure priority, fixture assertions,
 recomputed-verdict tamper rejection and no-policy behavior. A normal gate that
 fails on a budget is not run in this repository's CI, because it would fail the
 build; the policy-failure assertion job covers that path instead.
+
+## Optional statistical gates (0.5.0)
+
+A workflow and source revision that contain 0.5.0 accept five more optional string
+inputs. Each is empty by default, which keeps the CLI default.
+
+| Input | Meaning | Validation |
+| --- | --- | --- |
+| `gate` | `any-regression`, `mcnemar`, `noninferiority` or `confident-regression` | finite choice, checked in the options step and again by the runner |
+| `alpha` | two-sided level for McNemar p-values and intervals | decimal in (0, 0.5] |
+| `margin` | pass-rate margin for the two interval gates | decimal in [0, 1); rejected for other gates |
+| `resamples` | paired bootstrap resamples | integer up to 1,000,000, and enough for `alpha` |
+| `seed` | bootstrap seed | integer from 0 to 2^64 - 1 |
+
+All five require `baseline`; any of them without a baseline stops the evaluation
+stage with exit 2 and no handoff. Values travel as separate argv items after
+validation, never as shell text. `provenance.json` gains a `gate` object with the
+normalized options whenever a baseline is used, and the job summary adds the gate
+verdict, the pass-rate change and interval, the McNemar p-value and the detectable
+change. The final gate stage recomputes the expected exit from the validated JSON
+report. Because report validation recomputes the pass-rate statistics and the
+gate verdict, a report whose verdict was edited is rejected even if its hash in
+`gate.json` was updated to match.
+
+0.5.0 changes the evaluation report bytes (schema 2 adds the statistics), adds the
+`gate` object to `provenance.json` and adds one statistics line to the job summary.
+The artifact file set and the `gate.json` handoff shape are unchanged.
+
+With a statistical gate the evaluation exit is 0 or 3, never 1: the gate compares
+the candidate with its baseline instead of requiring every case to pass. Combine it
+with `rules` and a `min_pass_rate` threshold for an absolute floor.
+
+This repository's CI calls the reusable workflow twice more on the 6-case
+fixtures and the schema 1 baseline `fixtures/baseline-report.json`. **Synthetic
+McNemar gate accepts 2 regressions in 6 cases** runs the real gate: two
+regressions with no improvements give p = 0.5, so it passes. **Verify the
+non-inferiority gate rejects the same regression** uses `margin: '0.05'` and
+`expectation: regression`, and succeeds only if evaluation exits 3. The pair shows
+why six cases cannot support a statistical claim either way: the report's
+`min_discordant` is 6 and its pass-rate `mde` is 0.590626.

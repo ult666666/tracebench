@@ -32,6 +32,8 @@ jobs:
         run: .venv/bin/python scripts/verify_demo.py --cli .venv/bin/tracebench
       - name: Verify HTML CLI and exact synthetic sample bytes
         run: .venv/bin/python scripts/verify_html.py --cli .venv/bin/tracebench
+      - name: Paired demo fixtures match their generator
+        run: python scripts/make_paired_fixtures.py --check
 
   recorded-clean:
     name: Synthetic clean evaluation gate
@@ -80,6 +82,32 @@ jobs:
       rules: fixtures/budget-fail.json
       artifact-name: synthetic-budget-fail-reports
       expectation: policy-failure
+
+  recorded-mcnemar-gate:
+    name: Synthetic McNemar gate accepts 2 regressions in 6 cases (p = 0.5)
+    uses: ./.github/workflows/recorded-evaluation.yml
+    with:
+      tracebench-ref: ${{ github.sha }}
+      cases: fixtures/cases.jsonl
+      outputs: fixtures/regression.jsonl
+      baseline: fixtures/baseline-report.json
+      pricing: fixtures/pricing.json
+      gate: mcnemar
+      artifact-name: synthetic-mcnemar-reports
+
+  recorded-noninferiority-verification:
+    name: Verify the non-inferiority gate rejects the same regression (exit 3)
+    uses: ./.github/workflows/recorded-evaluation.yml
+    with:
+      tracebench-ref: ${{ github.sha }}
+      cases: fixtures/cases.jsonl
+      outputs: fixtures/regression.jsonl
+      baseline: fixtures/baseline-report.json
+      pricing: fixtures/pricing.json
+      gate: noninferiority
+      margin: '0.05'
+      artifact-name: synthetic-noninferiority-reports
+      expectation: regression
 
   browser:
     name: Real HTML browser interactions (development only)

@@ -16,8 +16,9 @@ import sys
 import tempfile
 
 from tracebench import __version__
-from tracebench.evaluate import validate_report
+from tracebench.evaluate import outcome, validate_report
 from tracebench.io import InputError, load_json
+from tracebench.paired import GATES, gate_options
 from tracebench.policy import RULES_LIMIT, evaluate_policy, load_rules, render_policy_markdown
 
 
@@ -87,6 +88,29 @@ def source_sha():
     return value
 
 
+GATE_OPTIONS = ("gate", "alpha", "margin", "resamples", "seed")
+
+
+def gate_settings(has_baseline):
+    """Validated optional gate inputs as CLI arguments plus their normalized values."""
+    raw = {name: os.environ.get("TB_" + name.upper(), "") for name in GATE_OPTIONS}
+    if raw["gate"] and raw["gate"] not in GATES:
+        raise RunnerError("gate must be any-regression, mcnemar, noninferiority or confident-regression")
+    selected = {name: value for name, value in raw.items() if value}
+    if not has_baseline:
+        if selected:
+            raise RunnerError("gate, alpha, margin, resamples and seed require a baseline")
+        return [], None
+    try:
+        normalized = gate_options(**selected)
+    except InputError:
+        raise RunnerError("invalid gate, alpha, margin, resamples or seed") from None
+    arguments = []
+    for name, value in selected.items():
+        arguments += ["--" + name, value]
+    return arguments, normalized
+
+
 def write_json(path, value):
     path.write_text(json.dumps(value, ensure_ascii=True, sort_keys=True, indent=2) + "\n", encoding="utf-8")
 
@@ -107,6 +131,7 @@ def evaluate_stage():
         value = os.environ.get("TB_" + name.upper(), "")
         if value or name in {"cases", "outputs"}:
             inputs[name] = input_file(workspace, value)
+    gate_arguments, gate = gate_settings("baseline" in inputs)
     if "rules" in inputs:
         load_rules(inputs["rules"])
     elif expected == "policy-failure":
@@ -121,6 +146,7 @@ def evaluate_stage():
             if name == "rules":
                 continue
             command += ["--" + name, str(path)]
+        command += gate_arguments
         codes = []
         for format_name, filename in [("json", "report.json"), ("markdown", "report.md"), ("html", "report.html")]:
             result = subprocess.run(command + ["--format", format_name, "--report", str(directory / filename)],
@@ -134,7 +160,7 @@ def evaluate_stage():
         if len(set(codes)) != 1 or any(digest(inputs[name]) != meta["sha256"] for name, meta in provenance_inputs.items()):
             raise RunnerError("input or outcome changed during evaluation")
         code = codes[0]
-        report = load_json(directory / "report.json", max_bytes=REPORT_LIMIT)
+        report = validate_report(load_json(directory / "report.json", max_bytes=REPORT_LIMIT))
         policy_code = None
         artifacts = REPORTS
         if "rules" in inputs:
@@ -161,6 +187,8 @@ def evaluate_stage():
                       "suite_sha256": report["suite_sha256"], "inputs": provenance_inputs,
                       "evaluation_exit": code, "expected_outcome": expected,
                       "notice": "Recorded outputs only; provenance hashes do not establish truth or model quality."}
+        if gate is not None:
+            provenance["gate"] = gate
         if policy_code is not None:
             provenance["policy_exit"] = policy_code
         write_json(directory / "provenance.json", provenance)
@@ -170,11 +198,17 @@ def evaluate_stage():
             handoff["policy_exit"] = policy_code
         write_json(directory / "gate.json", handoff)
         regressions = len(report["comparison"]["regressions"]) if report["comparison"] else 0
+        statistics_summary = ""
+        if report["comparison"] and "statistics" in report["comparison"]:
+            rate, verdict = report["comparison"]["statistics"]["pass_rate"], report["comparison"]["gate"]
+            statistics_summary = (f"Gate `{verdict['policy']}`: **{'failed' if verdict['failed'] else 'passed'}** · "
+                                  f"pass-rate change {rate['delta']} (interval {rate['ci_lower']} to {rate['ci_upper']}) · "
+                                  f"exact McNemar p {rate['mcnemar_p']} · detectable change {rate['mde'] or 'unavailable'}\n\n")
         policy_summary = f"Policy exit: **{policy_code}** · all selected budgets must pass; unavailable observations fail policy.\n\n" if policy_code is not None else ""
         append_environment("GITHUB_STEP_SUMMARY", f"### TraceBench recorded evaluation\n\n"
                            f"Evaluation exit: **{code}** · passed: **{report['summary']['passed']}** · "
                            f"failed: **{report['summary']['failed']}** · regressions: **{regressions}**\n\n"
-                           + policy_summary + f"Gate expectation: `{expected}`. Reports are uploaded before applying the gate.\n\n"
+                           + statistics_summary + policy_summary + f"Gate expectation: `{expected}`. Reports are uploaded before applying the gate.\n\n"
                            f"TraceBench `{__version__}` · source `{revision}` · suite `{report['suite_sha256']}`\n\n"
                            "Recorded outputs only; no provider was called. Download the JSON, Markdown, HTML and provenance artifact.\n")
         append_environment("GITHUB_OUTPUT", f"report_dir={directory}\nexit_code={code}\n" +
@@ -213,8 +247,7 @@ def gate_stage():
     code = handoff["exit_code"]
     report = load_json(raw / "report.json", max_bytes=REPORT_LIMIT)
     validate_report(report)
-    actual = 3 if report["comparison"] and report["comparison"]["regressions"] else (1 if report["summary"]["failed"] else 0)
-    if code != actual:
+    if code != outcome(report):
         raise RunnerError("handoff outcome disagrees with the validated JSON report")
     policy_code = None
     if has_policy:

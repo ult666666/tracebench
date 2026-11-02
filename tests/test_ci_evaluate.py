@@ -166,6 +166,51 @@ class CiEvaluationTests(unittest.TestCase):
         linked.symlink_to(directory, target_is_directory=True)
         self.assertEqual(self.run_stage("gate", TB_REPORT_DIR=str(linked)).returncode, 2)
 
+    def test_statistical_gate_inputs_set_the_outcome_and_are_recorded(self):
+        for changes, code, failed in [({"TB_GATE": "mcnemar"}, 0, False),
+                                      ({"TB_GATE": "noninferiority", "TB_MARGIN": "0.05", "TB_RESAMPLES": "999",
+                                        "TB_SEED": "7", "TB_ALPHA": "0.10"}, 3, True)]:
+            with self.subTest(changes=changes):
+                self.output.write_text("")
+                result = self.run_stage(TB_OUTPUTS="fixtures/regression.jsonl", **changes)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                handoff = self.handoff()
+                self.assertEqual(handoff["exit_code"], str(code))
+                directory = Path(handoff["report_dir"])
+                report = json.loads((directory / "report.json").read_text())
+                self.assertEqual(report["comparison"]["gate"]["failed"], failed)
+                provenance = json.loads((directory / "provenance.json").read_text())
+                self.assertEqual(provenance["gate"]["gate"], changes["TB_GATE"])
+                if "TB_ALPHA" in changes:
+                    self.assertEqual((provenance["gate"]["alpha"], provenance["gate"]["resamples"]), ("0.1", 999))
+                self.assertIn(f"Gate `{changes['TB_GATE']}`: **{'failed' if failed else 'passed'}**", self.summary.read_text())
+                self.assertEqual(self.run_stage("gate", TB_REPORT_DIR=str(directory)).returncode, code)
+
+    def test_invalid_or_baseline_free_gate_inputs_never_produce_a_handoff(self):
+        for changes in [{"TB_GATE": "bogus"}, {"TB_GATE": "mcnemar", "TB_BASELINE": ""}, {"TB_ALPHA": "0.05", "TB_BASELINE": ""},
+                        {"TB_ALPHA": "five"}, {"TB_GATE": "mcnemar", "TB_MARGIN": "0.1"}, {"TB_RESAMPLES": "10"},
+                        {"TB_SEED": "-1"}, {"TB_GATE": "noninferiority", "TB_MARGIN": "--report=/tmp/x"}]:
+            with self.subTest(changes=changes):
+                self.output.write_text("")
+                result = self.run_stage(**changes)
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertEqual(self.output.read_text(), "")
+                self.assertIn("TraceBench CI:", result.stderr)
+
+    def test_gate_stage_rejects_a_flipped_statistical_verdict_even_with_matching_hashes(self):
+        result = self.run_stage(TB_OUTPUTS="fixtures/regression.jsonl", TB_GATE="mcnemar")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        directory = Path(self.handoff()["report_dir"])
+        report = json.loads((directory / "report.json").read_text())
+        report["comparison"]["gate"].update(failed=True, reason="The exact McNemar p-value is below alpha and regressions outnumber improvements.")
+        (directory / "report.json").write_text(json.dumps(report))
+        handoff = json.loads((directory / "gate.json").read_text())
+        handoff.update(exit_code=3, sha256={**handoff["sha256"], "report.json": hashlib.sha256((directory / "report.json").read_bytes()).hexdigest()})
+        (directory / "gate.json").write_text(json.dumps(handoff))
+        gated = self.run_stage("gate", TB_REPORT_DIR=str(directory))
+        self.assertEqual(gated.returncode, 2, gated.stderr)
+        self.assertNotIn("Traceback", gated.stderr)
+
 
 class InstalledGeneratedReportLimitTests(unittest.TestCase):
     """Exercise the runner with a real wheel installed outside the checkout."""

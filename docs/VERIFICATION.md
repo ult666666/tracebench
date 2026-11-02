@@ -7,15 +7,17 @@ no model provider is called or timed.
 
 ## What CI runs
 
-[`ci.yml`](../.github/workflows/ci.yml) has seven jobs:
+[`ci.yml`](../.github/workflows/ci.yml) has nine jobs:
 
 | Job | What it checks |
 | --- | --- |
-| `test (3.11)`, `test (3.13)` | The full `unittest` suite. Then an offline `pip install --no-index .` into a fresh virtual environment, the installed CLI's four exit codes from a directory outside the checkout (`scripts/verify_demo.py`), and the HTML output plus the exact bytes of the committed HTML sample (`scripts/verify_html.py`). |
+| `test (3.11)`, `test (3.13)` | The full `unittest` suite. Then an offline `pip install --no-index .` into a fresh virtual environment, the installed CLI's four exit codes and the paired-gate demo from a directory outside the checkout (`scripts/verify_demo.py`), the HTML output plus the exact bytes of the committed HTML sample (`scripts/verify_html.py`), and the paired demo fixtures against their generator (`scripts/make_paired_fixtures.py --check`). |
 | Synthetic clean evaluation gate | Calls the [reusable workflow](CI.md) on the clean fixtures and applies the real gate. |
 | Verify synthetic regression exits 3 | Runs the regressed fixtures and asserts evaluation exit 3. |
 | Synthetic budget accepted by real combined gate | Runs the clean fixtures with `fixtures/budget-pass.json` through the real gate. |
 | Verify synthetic budget failure | Runs `fixtures/budget-fail.json` and asserts evaluation exit 0 and policy exit 1. |
+| Synthetic McNemar gate accepts 2 regressions in 6 cases | Runs the regressed fixtures with `gate: mcnemar` through the real gate (p = 0.5, exit 0). |
+| Verify the non-inferiority gate rejects the same regression | Runs `gate: noninferiority` with `margin: '0.05'` and asserts exit 3. |
 | Real HTML browser interactions | Installs the locked Playwright 1.61.1 and Chromium, then checks the HTML report in a real browser. This job fails if the browser checks cannot run. |
 
 [`pages.yml`](../.github/workflows/pages.yml) runs on `main` only. It repeats the
@@ -56,6 +58,16 @@ and says so, unless `--require-browser` is set.
   0, 1 and 2, atomic report writes, and refusal to overwrite an input.
 - **Budgets:** inclusive pass-rate, p95-latency and cost boundaries, missing or
   partial observations, wrong currency, and malformed rule files.
+- **Paired statistics (0.5.0):** exact McNemar values against hand derivations,
+  brute-force enumeration of every outcome and `math.comb`; critical counts
+  against a linear search; the bootstrap against an independent implementation of
+  the documented algorithm and a fixed interval on both Python versions; seeded
+  property tests (identical runs never fail any gate, swapping baseline and
+  candidate mirrors every statistic, case order never matters, a constant latency
+  shift moves the interval exactly, more regressions never help); the exact
+  false-failure rate of the McNemar gate; simulated error rates of the interval
+  gates; the exact power at the reported detectable change; and rejection of
+  tampered or unnormalized schema 2 statistics.
 - **CI runner:** every gate outcome, path and size limits, symlinks, shell
   metacharacters in paths, and tampered handoff files.
 - **Packaging:** wheel and source-archive contents, and the installed console
@@ -92,6 +104,10 @@ fixed:
 - **0.4.0:** a CI handoff with its whole policy file set removed could pass as a
   run without budgets; some 100-digit thresholds normalized to a string longer
   than the rules schema allows.
+- **0.5.0:** a draft of the schema 2 validator accepted a check-pass-rate interval
+  with an upper bound above 1 when the change itself was in range; the CI runner
+  wrote numbers from the generated report into the job summary before validating
+  that report.
 
 Release notes for each version are on the
 [releases page](https://github.com/ult666666/tracebench/releases).

@@ -5,7 +5,7 @@ import hashlib
 from html import escape
 
 from .evaluate import validate_report
-from .report import render_json
+from .report import describe_statistics, render_json
 
 
 # These constants never include report data. CSP permits exactly their bytes.
@@ -149,7 +149,7 @@ def _case(result, regressions, improvements, currency):
 def render_html(report: dict) -> str:
     """Validate and render a deterministic standalone report with full inert text.
 
-    Input/expected values are not retained in schema v1 and are not reconstructed.
+    Input/expected values are not retained in report schemas 1 or 2 and are not reconstructed.
     Existing input bounds and report validation apply; outputs are never truncated.
     All dynamic values occupy escaped text nodes, never attributes, CSS or script.
     """
@@ -168,9 +168,19 @@ def render_html(report: dict) -> str:
     else:
         latency_value, latency_detail = "Latency unavailable", "No measurements supplied."
     cost_value = _text(cost["total"]) + " " + _text(cost["currency"]) if cost["total"] is not None else "Cost unavailable"
+    described = describe_statistics(comparison)
+    statistics_text = ""
+    if described is not None:
+        lines = [f'<strong>{_text(described["gate"])}</strong> {_text(described["reason"])}', _text(described["method"])]
+        for label, row in described["rows"]:
+            lines.append(_text(f"{label}: " + (f"{row[1]} to {row[2]}, change {row[3]}, {described['level']}% interval {row[4]}, "
+                                                f"detectable change {row[5]}, {row[0]} pairs." if row else "unavailable.")))
+        lines += [_text(line) for line in described["tests"]]
+        statistics_text = "".join(f'<p class="fine">{line}</p>' for line in lines)
     comparison_text = ('<div class="counts"><span>Regressions <strong>' + str(len(regressions)) + '</strong></span><span>Improvements <strong>'
                        + str(len(improvements)) + '</strong></span><span>Unchanged <strong>' + str(comparison["unchanged"]) + '</strong></span></div>'
-                       f'<p class="fine">Baseline passed {comparison["baseline_passed"]} / {cases} · Current passed {comparison["current_passed"]} / {cases}. Comparison is by case ID.</p>') if comparison else '<p>No baseline supplied. Regression and improvement status is unavailable.</p>'
+                       f'<p class="fine">Baseline passed {comparison["baseline_passed"]} / {cases} · Current passed {comparison["current_passed"]} / {cases}. Comparison is by case ID.</p>'
+                       + statistics_text) if comparison else '<p>No baseline supplied. Regression and improvement status is unavailable.</p>'
     csp = ("default-src 'none'; script-src 'sha256-" + _hash(_SCRIPT) + "'; style-src 'sha256-" + _hash(_STYLE)
            + "'; script-src-attr 'none'; style-src-attr 'none'; connect-src 'none'; img-src 'none'; font-src 'none'; "
            "object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'")
@@ -201,6 +211,6 @@ def render_html(report: dict) -> str:
             '<option value="regressions">Regressions</option><option value="improvements">Improvements</option></select></div></div>'
             '<noscript><p class="fine">JavaScript is disabled. All cases are visible; use the expandable blocks to inspect full text.</p></noscript>'
             + "".join(_case(result, regressions, improvements, cost["currency"]) for result in report["results"])
-            + '</section><footer>TraceBench · Offline evaluation · Report schema 1. '
+            + f'</section><footer>TraceBench · Offline evaluation · Report schema {report["schema_version"]}. '
             'Recorded content is displayed as inert text. Print this page to include every case and full output.</footer></main><script>'
             + _SCRIPT + '</script></body></html>\n')

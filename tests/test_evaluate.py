@@ -178,7 +178,10 @@ class EvaluationTests(unittest.TestCase):
         baseline = evaluate(cases, {"a": output("a"), "b": output("b", "bad")})
         candidate = evaluate(cases, {"b": output("b"), "a": output("a", "bad")})
         comparison = compare_baseline(candidate, baseline)
+        statistics, gate = comparison.pop("statistics"), comparison.pop("gate")
         self.assertEqual(comparison, {"baseline_passed": 1, "current_passed": 1, "regressions": ["a"], "improvements": ["b"], "unchanged": 0})
+        self.assertEqual((statistics["pass_rate"]["discordant"], statistics["pass_rate"]["delta"]), (2, "0.000000"))
+        self.assertEqual((gate["policy"], gate["failed"]), ("any-regression", True))
 
     def test_baseline_rejects_missing_cases_and_changed_suite(self):
         current = run_case(case(), output())
