@@ -27,6 +27,26 @@ on:
         description: Optional caller-relative recorded-observation budget rules JSON (at most 64 KiB)
         default: ''
         type: string
+      gate:
+        description: 'Optional regression gate with a baseline: any-regression (default), mcnemar, noninferiority or confident-regression'
+        default: ''
+        type: string
+      alpha:
+        description: Optional two-sided level for McNemar p-values and bootstrap intervals, a decimal in (0, 0.5] (default 0.05)
+        default: ''
+        type: string
+      margin:
+        description: Optional pass-rate margin for noninferiority and confident-regression, a decimal in [0, 1) (default 0)
+        default: ''
+        type: string
+      resamples:
+        description: Optional paired bootstrap resample count (default 2000)
+        default: ''
+        type: string
+      seed:
+        description: Optional bootstrap seed, a nonnegative integer (default 0)
+        default: ''
+        type: string
       artifact-name:
         description: Unique lowercase artifact name, letters/digits/hyphens, starts with a letter, max 63
         default: tracebench-reports
@@ -60,6 +80,7 @@ jobs:
           TB_SOURCE_SHA: ${{ inputs.tracebench-ref }}
           TB_ARTIFACT: ${{ inputs.artifact-name }}
           TB_EXPECTATION: ${{ inputs.expectation }}
+          TB_GATE: ${{ inputs.gate }}
         shell: python
         run: |
           import os, re
@@ -70,6 +91,8 @@ jobs:
               raise SystemExit('artifact-name must match [a-z][a-z0-9-]{0,62}')
           if expectation not in {'pass', 'regression', 'policy-failure'}:
               raise SystemExit('expectation must be pass or regression or policy-failure')
+          if os.environ['TB_GATE'] not in {'', 'any-regression', 'mcnemar', 'noninferiority', 'confident-regression'}:
+              raise SystemExit('gate must be any-regression, mcnemar, noninferiority or confident-regression')
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as stream:
               stream.write(f'source_sha={sha}\nartifact_name={name}\n')
       - name: Check out caller inputs and code (read-only token)
@@ -103,6 +126,11 @@ jobs:
           TB_BASELINE: ${{ inputs.baseline }}
           TB_PRICING: ${{ inputs.pricing }}
           TB_RULES: ${{ inputs.rules }}
+          TB_GATE: ${{ inputs.gate }}
+          TB_ALPHA: ${{ inputs.alpha }}
+          TB_MARGIN: ${{ inputs.margin }}
+          TB_RESAMPLES: ${{ inputs.resamples }}
+          TB_SEED: ${{ inputs.seed }}
           TB_EXPECTATION: ${{ inputs.expectation }}
           TB_SOURCE_SHA: ${{ steps.options.outputs.source_sha }}
         shell: bash

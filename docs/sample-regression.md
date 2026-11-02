@@ -14,6 +14,21 @@ Cases missing token observations: 0 / 6.
 Regressions: 2 · Improvements: 0 · Unchanged: 4.
 Regression IDs: en&#x2D;greeting, zh&#x2D;location.
 
+Gate any-regression: failed. At least one case passed in the baseline and fails now.
+
+Paired statistics: 95% bootstrap percentile intervals from 2000 resamples (seed 0); detectable change is the smallest true change found with 80% power.
+
+| Metric | Pairs | Baseline | Current | Change | 95% interval | Detectable change |
+| --- | --- | --- | --- | --- | --- | --- |
+| Pass rate | 6 | 1.000000 | 0.666667 | -0.333333 | -0.666667 to 0.000000 | 0.590626 |
+| Check pass rate | 6 | 1.000000 | 0.666667 | -0.333333 | -0.666667 to 0.000000 | 0.590626 |
+| Mean latency (ms) | 6 | 173.333333 | 150 | -23.333333 | -26.666667 to -20 | 5.90626 |
+| Total cost (USD) | 6 | 0.0000327 | 0.0000327 | 0 | 0 to 0 | unavailable |
+
+Exact McNemar test: 2 regressions and 0 improvements among 2 discordant pairs; p = 0.5 two-sided, 0.25 in the regression direction.
+A two-sided p below 0.05 needs at least 6 discordant pairs.
+Latency and cost need at least two cases observed in both reports; cost also needs one currency.
+
 | Case ID | Status | Check results | Recorded output preview |
 | --- | --- | --- | --- |
 | en&#x2D;greeting | FAIL | exact&#x3A; FAIL &#x2014; exact string differs &#x28;case and whitespace are significant&#x29; | &#x22;hello&#x2C; world&#x21;&#x22; |

@@ -219,7 +219,7 @@ class PolicyTests(unittest.TestCase):
 
     def test_report_validation_is_not_bypassed(self):
         report = recorded()
-        for change in [{"summary": {**report["summary"], "passed": 0}}, {"schema_version": 2}, {"extra": "field"}]:
+        for change in [{"summary": {**report["summary"], "passed": 0}}, {"schema_version": 3}, {"extra": "field"}]:
             with self.subTest(change=change), self.assertRaises(InputError):
                 self.verdict({**report, **change}, min_pass_rate="0")
 

@@ -34,7 +34,8 @@ Path("reports/api.html").write_text(render_html(candidate), encoding="utf-8")
 | `load_pricing(path)` | Validate pricing JSON and return currency plus `Decimal` rates |
 | `load_json(path)` | Read a bounded strict JSON document; semantic report validation happens during comparison |
 | `evaluate(cases, outputs, *, pricing=None)` | Revalidate mappings, require exact ID sets, return report with null comparison |
-| `compare_baseline(current, baseline)` | Validate both reports and suite compatibility, return comparison dictionary without mutating either report |
+| `compare_baseline(current, baseline, *, gate=None, alpha=None, margin=None, resamples=None, seed=None)` | Validate both reports and suite compatibility; return the schema 2 comparison with paired statistics and the gate verdict, without mutating either report. Options are strings or integers as for the CLI flags |
+| `outcome(report)` | The CLI exit status for a validated report: 0, 1 or 3, following the selected gate |
 | `render_json(report)` | Exact-number JSON with HTML-sensitive strings escaped and trailing newline |
 | `render_markdown(report)` | Escaped readable report with 300-character output previews |
 | `render_html(report: dict) -> str` | Validated standalone HTML with full escaped JSON outputs/reasons, fixed hashed CSP, optional search/filter script and print CSS |
@@ -56,10 +57,10 @@ numeric values. Normalized metric summaries and costs are plain strings. There
 are no timestamps or generated run IDs, so identical inputs yield identical
 serialized output on supported Python versions.
 
-`render_html` does not mutate the report or change schema v1. It preserves exact
+`render_html` does not mutate the report or change its schema. It preserves exact
 Decimal serialization through the existing JSON serializer. Outputs are full JSON
 values; reasons are JSON strings, which avoids HTML parser normalization of leading
-newlines, CR and NUL. Case inputs and expected values are absent from report v1 and
+newlines, CR and NUL. Case inputs and expected values are absent from reports and
 are explicitly labelled as unavailable. All supplied dynamic values occupy escaped
 text nodes; only fixed status values appear in attributes. No report data is embedded
 in JavaScript or CSS. See [HTML reporting](HTML.md) for the optional browser verifier.
@@ -76,7 +77,7 @@ Path("reports/policy.json").write_text(render_json(verdict), encoding="utf-8")
 Path("reports/policy.md").write_text(render_policy_markdown(verdict), encoding="utf-8")
 ```
 
-`evaluate_policy(report, rules)` first runs the existing schema 1 report validator,
+`evaluate_policy(report, rules)` first runs the report validator (schema 1 or 2),
 then validates the separate versioned rules. It returns a separate version 1
 verdict without mutating either argument. `validate_rules(rules)` returns reusable
 normalized rule strings that obey the original bounds and can be passed back to
@@ -98,3 +99,23 @@ fail; the verdict always shows those failure and regression counts.
 trailing newline. This identifies that deterministic report serialization, not
 the original input file's whitespace, a semantic canonicalization of arbitrary
 JSON, or authenticated provenance. The suite fingerprint remains unchanged.
+
+## Paired statistics and gates (0.5.0)
+
+```python
+from tracebench.evaluate import compare_baseline, outcome
+
+candidate["comparison"] = compare_baseline(candidate, baseline, gate="mcnemar", alpha="0.05")
+assert candidate["comparison"]["statistics"]["pass_rate"]["mcnemar_p"] == "1"
+assert outcome(candidate) == 0
+```
+
+`compare_baseline` needs a schema 2 current report from `evaluate`; the baseline
+may be schema 1 or 2. `tracebench.paired` holds the statistics on plain integers
+and fractions: `binomial_tail`, `mcnemar`, `critical_regressions`,
+`min_discordant`, `resample_sums`, `percentile_interval`, `detectable_effect`,
+`gate_fails` and `gate_options`. Its functions take columns of per-case
+differences already paired and sorted by case ID. `gate_options` raises
+`InputError` for invalid options and returns normalized values. Gate decisions use
+exact fractions; only `detectable_effect` uses floating point (for normal
+quantiles), and it never decides a gate.

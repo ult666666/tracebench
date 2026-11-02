@@ -1,6 +1,6 @@
 """Standalone JSON and inert Markdown serialization of untrusted records."""
 
-from decimal import Decimal
+from decimal import Context, Decimal, localcontext
 import json
 import unicodedata
 
@@ -49,6 +49,60 @@ def escape_markdown(value):
                    for c in str(value))
 
 
+_PERCENT = Context(prec=60)
+
+
+def _percent(value):
+    """Decimal fraction as a percentage without trailing zeros; call inside _PERCENT."""
+    text = format(value * 100, "f")
+    return text.rstrip("0").rstrip(".") if "." in text else text
+
+
+_METRICS = (("pass_rate", "Pass rate"), ("check_pass_rate", "Check pass rate"),
+             ("latency_ms", "Mean latency (ms)"), ("cost", "Total cost"))
+
+
+def _count(number, noun):
+    return f"{number} {noun}" + ("" if number == 1 else "s")
+
+
+def describe_statistics(comparison):
+    """Fixed-text pieces describing schema 2 paired statistics; None for schema 1.
+
+    Returns the gate sentence, the method sentence, one row per metric (None
+    when unavailable) and the McNemar sentences. Every number is a validated
+    decimal string or integer from the report, so the pieces contain no
+    recorded case content.
+    """
+    if comparison is None or "statistics" not in comparison:
+        return None
+    statistics, gate = comparison["statistics"], comparison["gate"]
+    with localcontext(_PERCENT):
+        level, power = (_percent(value) for value in (1 - Decimal(statistics["alpha"]), Decimal(statistics["power"])))
+    margin = f" (margin {gate['margin']})" if gate["margin"] is not None else ""
+    method = (f"Paired statistics: {level}% bootstrap percentile intervals from {statistics['resamples']} resamples "
+              f"(seed {statistics['seed']}); detectable change is the smallest true change found with {power}% power.")
+    rows = []
+    for key, label in _METRICS:
+        block = statistics[key]
+        if key == "cost" and block is not None:
+            label = f"{label} ({block['currency']})"
+        rows.append((label, None if block is None else
+                     (str(block["pairs"]), block["baseline"], block["current"], block["delta"],
+                      f"{block['ci_lower']} to {block['ci_upper']}", block["mde"] or "unavailable")))
+    rate = statistics["pass_rate"]
+    tests = [f"Exact McNemar test: {_count(len(comparison['regressions']), 'regression')} and "
+             f"{_count(len(comparison['improvements']), 'improvement')} among {_count(rate['discordant'], 'discordant pair')}; "
+             f"p = {rate['mcnemar_p']} two-sided, "
+             f"{rate['mcnemar_regression_p']} in the regression direction.",
+             f"A two-sided p below {statistics['alpha']} needs at least {rate['min_discordant']} discordant pairs."]
+    if rate["critical_regressions"] is not None:
+        tests.append(f"With {_count(rate['discordant'], 'discordant pair')}, the McNemar gate fails only at "
+                     f"{rate['critical_regressions']} or more regressions.")
+    return {"gate": f"Gate {gate['policy']}{margin}: {'failed' if gate['failed'] else 'passed'}.",
+            "reason": gate["reason"], "method": method, "level": level, "rows": rows, "tests": tests}
+
+
 def render_markdown(report):
     """Render human-readable metrics and inert, truncated output previews."""
     summary = report["summary"]
@@ -72,6 +126,14 @@ def render_markdown(report):
         for label, key in [("Regression IDs", "regressions"), ("Improvement IDs", "improvements")]:
             if comparison[key]:
                 text.append(label + ": " + ", ".join(escape_markdown(i) for i in comparison[key]) + ".")
+        described = describe_statistics(comparison)
+        if described is not None:
+            text += ["", described["gate"] + " " + described["reason"], "", described["method"], "",
+                     f"| Metric | Pairs | Baseline | Current | Change | {described['level']}% interval | Detectable change |",
+                     "| --- | --- | --- | --- | --- | --- | --- |"]
+            for label, row in described["rows"]:
+                text.append(f"| {label} | " + (" | ".join(row) if row else "unavailable | | | | | ") + " |")
+            text += [""] + described["tests"] + ["Latency and cost need at least two cases observed in both reports; cost also needs one currency."]
     text += ["", "| Case ID | Status | Check results | Recorded output preview |", "| --- | --- | --- | --- |"]
     for result in report["results"]:
         details = "; ".join(f"{c['type']}: {'PASS' if c['passed'] else 'FAIL'} — {c['reason']}" for c in result["checks"])
