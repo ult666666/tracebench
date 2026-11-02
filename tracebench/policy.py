@@ -85,7 +85,7 @@ def _at_most(actual, threshold):
 
 
 def evaluate_policy(report, rules):
-    """Validate report schema 1 and require every selected rule to pass exactly."""
+    """Validate the report (schema 1 or 2) and require every selected rule to pass exactly."""
     validate_report(report)
     thresholds = validate_rules(rules)
     summary = report["summary"]

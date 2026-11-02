@@ -58,7 +58,7 @@ def main(argv=None):
     gates.add_argument("--resamples", help=f"paired bootstrap resamples (default {DEFAULT_RESAMPLES})")
     gates.add_argument("--seed", help="bootstrap seed, a nonnegative integer (default 0)")
     policy = subparsers.add_parser("policy", help="apply explicit budgets to a recorded evaluation report")
-    policy.add_argument("--evaluation", required=True, type=Path, help="schema 1 evaluation JSON, at most 64 MiB")
+    policy.add_argument("--evaluation", required=True, type=Path, help="schema 1 or 2 evaluation JSON, at most 64 MiB")
     policy.add_argument("--rules", required=True, type=Path, help="strict schema 1 rules JSON, at most 64 KiB")
     policy.add_argument("--format", choices=("json", "markdown"), default="json")
     policy.add_argument("--report", type=Path, help="atomically replace a verdict file; defaults to stdout")
