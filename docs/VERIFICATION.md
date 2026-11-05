@@ -109,6 +109,5 @@ fixed:
   wrote numbers from the generated report into the job summary before validating
   that report.
 
-Release notes for 0.1.0 to 0.4.0 are on the
-[releases page](https://github.com/ult666666/tracebench/releases). 0.5.0 is on `main`
-and has not been tagged as a release yet.
+Release notes for 0.1.0 to 0.5.0 are on the
+[releases page](https://github.com/ult666666/tracebench/releases).
